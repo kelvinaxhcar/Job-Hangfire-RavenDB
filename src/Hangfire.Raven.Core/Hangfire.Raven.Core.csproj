@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<TargetFramework>net8.0</TargetFramework>
+		<Version>3.2.0</Version>
+		<AssemblyVersion>3.2.0.0</AssemblyVersion>
+		<FileVersion>3.2.0.0</FileVersion>
+		<Description>RavenDB job storage for Hangfire</Description>
+		<PackageId>Job.Hangfire.RavenDb.Core</PackageId>
+		<Version>6.0.0</Version>
+		<Authors>Kelvin Mateus Axhcar</Authors>
+		<Company>KelvinAxhcar</Company>
+		<Copyright>Copyright @ KelvinAxhcar</Copyright>
+		<PackageLicenseUrl>http://www.gnu.org/licenses/lgpl-3.0.html</PackageLicenseUrl>
+		<PackageProjectUrl>https://github.com/kelvinaxhcar/hangfire-ravendb</PackageProjectUrl>
+		<PackageIconUrl>https://avatars2.githubusercontent.com/u/7880472?v=3&amp;s=200</PackageIconUrl>
+		<PackageTags>Hangfire;AspNet;MVC;OWIN;RavenDB;Long-Running;Background;Fire-And-Forget;Delayed;Recurring;Tasks;Jobs;Scheduler;Threading;Queues</PackageTags>
+		<RepositoryType>git</RepositoryType>
+		<RepositoryUrl>https://github.com/kelvinaxhcar/hangfire-ravendb</RepositoryUrl>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Hangfire.AspNetCore" Version="1.8.15" />
+		<PackageReference Include="Hangfire.Core" Version="1.8.15" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="RavenDB.Client" Version="6.2.0" />
+	</ItemGroup>
+
+</Project>
