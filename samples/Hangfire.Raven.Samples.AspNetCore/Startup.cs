@@ -49,7 +49,10 @@ namespace Hangfire.Raven.Samples.AspNetCore
 
             BackgroundJob.Enqueue(() => Test());
 
-            RecurringJob.AddOrUpdate(() => Test(), Cron.Minutely);
+            RecurringJob.AddOrUpdate(
+                    ()=> Test(),
+                    "*/1 * * * *"
+                );
 
             app.UseRouting();
 
