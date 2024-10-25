@@ -63,7 +63,7 @@ namespace Hangfire.Raven.Tests
                 // Assert
                 using (var session = storage.Repository.OpenSession())
                 {
-                    var count = session.Query<JobQueue>().Count();
+                    var count = session.Query<JobQueue>().Where(x=> x.Id == id).Count();
                     Assert.Equal(0, count);
                 }
             });

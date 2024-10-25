@@ -1,31 +1,29 @@
-﻿using System;
+﻿using Hangfire.Raven.Extensions;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Indexes;
+using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Queries;
+using Raven.Client.Documents.Session;
+using Raven.Embedded;
+using System;
 using System.Collections.Generic;
-using Raven.Abstractions.Data;
-using Raven.Client;
-using Raven.Client.Indexes;
-using Raven.Client.Embedded;
-using Hangfire.Raven.Listeners;
 
 namespace Hangfire.Raven.Tests
 {
     public class TestRepository : IRepository
     {
-        private readonly EmbeddableDocumentStore _documentStore;
+        private readonly IDocumentStore _documentStore;
 
         public TestRepository()
         {
-            _documentStore = new EmbeddableDocumentStore
+            EmbeddedServer.Instance.StartServer();
+
+            _documentStore = EmbeddedServer.Instance.GetDocumentStore("Embedded");
+            _documentStore.Operations.Send(new DeleteByQueryOperation(new IndexQuery
             {
-                RunInMemory = true,
-                DefaultDatabase = "Hangfire-Raven-Tests",
-                DataDirectory = @"~\Databases\Hangfire-Raven-Tests"
-            };
-
-            _documentStore.Listeners.RegisterListener(new NoStaleQueriesListener());
-            _documentStore.Listeners.RegisterListener(new TakeNewestConflictResolutionListener());
+                Query = "from @all_docs"
+            }));
             _documentStore.Initialize();
-
-            new RavenDocumentsByEntityName().Execute(_documentStore.DatabaseCommands, _documentStore.Conventions);
         }
 
         public void Create()
@@ -41,41 +39,20 @@ namespace Hangfire.Raven.Tests
             _documentStore.Dispose();
         }
 
-        public IDisposable DocumentChange(Type documentType, Action<DocumentChangeNotification> action)
-        {
-            return _documentStore.Changes().ForDocumentsStartingWith(GetId(documentType, ""))
-                .Subscribe(new RepositoryObserver<DocumentChangeNotification>(action));
-        }
-
-        public IDisposable DocumentChange(Type documentType, string suffix, Action<DocumentChangeNotification> action)
-        {
-            return _documentStore.Changes().ForDocumentsStartingWith(GetId(documentType, string.Format("{0}/", suffix)))
-                .Subscribe(new RepositoryObserver<DocumentChangeNotification>(action));
-        }
-
         public void ExecuteIndexes(List<AbstractIndexCreationTask> indexes)
         {
-            _documentStore.ExecuteIndexes(indexes);
-        }
-
-        public FacetResults GetFacets(string index, IndexQuery query, List<Facet> facets)
-        {
-            return _documentStore.DatabaseCommands.GetFacets(index, query, facets);
+            _documentStore.ExecuteIndexes(indexes, null);
         }
 
         public string GetId(Type type, params string[] id)
         {
-            return _documentStore.Conventions.FindFullDocumentKeyFromNonStringIdentifier(string.Join("/", id), type, false);
-        }
-
-        public IAsyncDocumentSession OpenAsyncSession()
-        {
-            return _documentStore.OpenAsyncSession();
+            return type.ToString() + "/" + string.Join("/", id);
         }
 
         public IDocumentSession OpenSession()
         {
             return _documentStore.OpenSession();
         }
+
     }
 }

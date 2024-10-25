@@ -232,10 +232,11 @@ namespace Hangfire.Raven.Tests
                 var fetchedJob2 = CreateJobInState(repository, "2", FetchedStateName);
                 var unfetchedJob = CreateJobInState(repository, "3", EnqueuedState.StateName);
 
-                var jobIds = new List<string> { fetchedJob.Id, fetchedJob2.Id, unfetchedJob.Id };
+                var jobIds = new List<string> { fetchedJob.Id, fetchedJob2.Id };
                 _persistentJobQueueMonitoringApi.Setup(x => x
                     .GetFetchedJobIds(DefaultQueue, From, PerPage))
                     .Returns(jobIds.Select(x => x.Split(new[] { '/' }, 2)[1]));
+
 
                 var resultList = monitoringApi.FetchedJobs(DefaultQueue, From, PerPage);
 

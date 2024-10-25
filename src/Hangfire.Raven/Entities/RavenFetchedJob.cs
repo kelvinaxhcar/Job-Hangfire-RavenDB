@@ -35,22 +35,23 @@ namespace Hangfire.Raven.Entities
 
         public void RemoveFromQueue()
         {
-            using (IDocumentSession documentSession = this._storage.Repository.OpenSession())
+            using (IDocumentSession session = this._storage.Repository.OpenSession())
             {
-                JobQueue entity = documentSession.Load<JobQueue>(this.Id);
+                var entity = session.Load<JobQueue>(this.Id);
                 if (entity != null)
                 {
-                    documentSession.Delete<JobQueue>(entity);
-                    documentSession.SaveChanges();
+                    session.Delete(entity);
                 }
+                session.SaveChanges();
             }
             this._removedFromQueue = true;
         }
 
         public void Requeue()
         {
-            using (IDocumentSession documentSession = this._storage.Repository.OpenSession())
-                documentSession.Load<JobQueue>(this.Id).FetchedAt = new DateTime?();
+            using var session = this._storage.Repository.OpenSession();
+            session.Load<JobQueue>(this.Id).FetchedAt = new DateTime?();
+            session.SaveChanges();
             this._requeued = true;
         }
 
