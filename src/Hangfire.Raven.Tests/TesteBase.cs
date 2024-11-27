@@ -1,14 +1,11 @@
 ﻿using Raven.Client.Documents.Session;
 using Raven.Client.Documents;
-using Raven.Client.ServerWide.Operations;
-using Raven.Client.ServerWide;
 using System;
-using Xunit;
-using Raven.Client.Documents.Operations;
 using System.Collections.Generic;
-using System.Threading;
-using Raven.TestDriver;
 using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using Xunit.Abstractions;
 
 namespace Hangfire.Raven.Tests
 {
@@ -18,11 +15,13 @@ namespace Hangfire.Raven.Tests
         public IDocumentSession _session;
         private IAsyncDocumentSession _sessionAsync;
         private string NomeDoBancoDeDados;
+        private readonly ITestOutputHelper _helper;
         private Dictionary<string, IDocumentStore> StoresDosBancos { get; set; }
         private RavenTestesUnitarios _ravenTestesUnitarios;
 
-        public TesteBase()
+        public TesteBase(ITestOutputHelper helper)
         {
+            _helper = helper;
             StoresDosBancos = new Dictionary<string, IDocumentStore>();
             _ravenTestesUnitarios = new RavenTestesUnitarios(StoresDosBancos);
             NomeDoBancoDeDados = ObterNomeDoTeste();
@@ -54,12 +53,19 @@ namespace Hangfire.Raven.Tests
             _sessionAsync = _store.OpenAsyncSession();
             return _sessionAsync;
         }
-        private string ObterNomeDoTeste()
+        public string ObterNomeDoTeste()
         {
-            var stackTrace = new System.Diagnostics.StackTrace();
-            var frame = stackTrace.GetFrame(1);
-            var method = frame.GetMethod();
-            return method?.Name ?? "Teste_Unico";
+            var valueHelper = _helper
+                .GetType()
+                ?.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.GetValue(_helper);
+
+            var nomeDoTeste = ((ITest)valueHelper)
+                .DisplayName
+                .Split(".")
+                .LastOrDefault();
+
+            return Regex.Replace(nomeDoTeste, "\\W", "_");
         }
 
         protected void SalvarAlteracoes()
@@ -78,75 +84,6 @@ namespace Hangfire.Raven.Tests
             _sessionAsync?.Dispose();
             _store?.Dispose();
             _ravenTestesUnitarios?.Dispose();
-        }
-
-        private class RavenTestesUnitarios : RavenTestDriver
-        {
-            private Dictionary<string, IDocumentStore> _storesDosBancos;
-
-            public RavenTestesUnitarios(Dictionary<string, IDocumentStore> storesDosBancos)
-            {
-                _storesDosBancos = storesDosBancos;
-            }
-
-            public void Dispose()
-            {
-                DestruirBancoDeDadosTeste();
-            }
-
-            private void DestruirBancoDeDadosTeste()
-            {
-                foreach (var storeNomeado in _storesDosBancos)
-                {
-                    storeNomeado.Value.Dispose();
-                }
-            }
-
-            public void SalvarAlteracoes(IDocumentSession session)
-            {
-                session.SaveChanges();
-                WaitForIndexing(session.Advanced.DocumentStore);
-                Thread.Sleep(100);
-            }
-
-            public void SalvarAlteracoesAsync(IAsyncDocumentSession session)
-            {
-                session.SaveChangesAsync();
-                WaitForIndexing(session.Advanced.DocumentStore);
-                Thread.Sleep(100);
-            }
-
-            public IDocumentStore ObterNovoStore(string nomeDoBanco)
-            {
-                var store = GetDocumentStore(database: nomeDoBanco);
-                _storesDosBancos.Add(nomeDoBanco, store);
-
-                WaitForIndexing(store);
-                Thread.Sleep(100);
-
-                return store;
-            }
-
-            public void AdicionarListaComId<T>(IDocumentSession session, List<KeyValuePair<string, T>> lista) where T : new()
-            {
-                lista.ForEach(x => session.Store(x.Value, x.Key));
-                SalvarAlteracoes(session);
-            }
-
-            protected void WaitForIndexing(IDocumentStore documentStore)
-            {
-                while (documentStore.Maintenance.Send(new GetStatisticsOperation()).StaleIndexes.Any())
-                {
-                    Thread.Sleep(50);
-                }
-            }
-            protected override void PreInitialize(IDocumentStore documentStore)
-            {
-                documentStore.Conventions.MaxNumberOfRequestsPerSession = 100;
-                documentStore.Conventions.UseOptimisticConcurrency = false;
-                documentStore.Conventions.IdentityPartsSeparator = '-';
-                documentStore.Conventions.SaveEnumsAsIntegers = true;
-            }
         }
     }
 }

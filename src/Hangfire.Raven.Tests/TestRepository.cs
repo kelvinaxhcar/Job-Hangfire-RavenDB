@@ -12,18 +12,27 @@ namespace Hangfire.Raven.Tests
 {
     public class TestRepository : IRepository
     {
+
         private readonly IDocumentStore _documentStore;
+        private readonly IDocumentSession _documentSession;
 
-        public TestRepository()
+        public TestRepository(IDocumentSession documentSession = null)
         {
-            EmbeddedServer.Instance.StartServer();
-
-            _documentStore = EmbeddedServer.Instance.GetDocumentStore("Embedded");
-            _documentStore.Operations.Send(new DeleteByQueryOperation(new IndexQuery
+            if (documentSession != null)
             {
-                Query = "from @all_docs"
-            }));
-            _documentStore.Initialize();
+                _documentSession = documentSession;
+                _documentStore = _documentSession.Advanced.DocumentStore;
+
+                var urls = _documentStore.Urls;       // Array de URLs
+                var database = _documentStore.Database; // Nome do banco de dados
+
+                _documentStore = new DocumentStore
+                {
+                    Urls = urls,
+                    Database = database
+                };
+                _documentStore.Initialize();
+            }
         }
 
         public void Create()
