@@ -16,7 +16,7 @@ namespace Hangfire.Raven.Tests
         private readonly IDocumentStore _documentStore;
         private readonly IDocumentSession _documentSession;
 
-        public TestRepository(IDocumentSession documentSession = null)
+        public TestRepository(IDocumentSession documentSession)
         {
             if (documentSession != null)
             {

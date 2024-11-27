@@ -5,12 +5,17 @@ using System;
 using System.Linq;
 using System.Threading;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Hangfire.Raven.Tests
 {
-    public class RavenJobQueueFacts
+    public class RavenJobQueueFacts : TesteBase
     {
         private static readonly string[] DefaultQueues = { "default" };
+
+        public RavenJobQueueFacts(ITestOutputHelper helper) : base(helper)
+        {
+        }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenStorageIsNull()
@@ -380,15 +385,6 @@ namespace Hangfire.Raven.Tests
         private static RavenJobQueue CreateJobQueue(RavenStorage storage)
         {
             return new RavenJobQueue(storage, new RavenStorageOptions());
-        }
-
-        private static void UseStorage(Action<RavenStorage> action)
-        {
-            using (var repository = new TestRepository())
-            {
-                var storage = new RavenStorage(repository);
-                action(storage);
-            }
         }
     }
 }

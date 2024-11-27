@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Xunit.Abstractions;
+using Hangfire.Raven.Storage;
 
 namespace Hangfire.Raven.Tests
 {
@@ -84,6 +85,14 @@ namespace Hangfire.Raven.Tests
             _sessionAsync?.Dispose();
             _store?.Dispose();
             _ravenTestesUnitarios?.Dispose();
+        }
+        public void UseStorage(Action<RavenStorage> action)
+        {
+            using (var repository = new TestRepository(_session))
+            {
+                var storage = new RavenStorage(repository);
+                action(storage);
+            }
         }
     }
 }

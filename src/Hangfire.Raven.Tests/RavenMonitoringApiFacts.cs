@@ -10,11 +10,13 @@ using Hangfire.Raven.JobQueues;
 using Hangfire.Raven.Storage;
 using Hangfire.Raven.Entities;
 using System.Linq;
+using Xunit.Abstractions;
 
 namespace Hangfire.Raven.Tests
 {
-    public class RavenMonitoringApiFacts
+    public class RavenMonitoringApiFacts : TesteBase
     {
+
         private const string DefaultQueue = "default";
         private const string FetchedStateName = "Fetched";
         private const int From = 0;
@@ -24,7 +26,7 @@ namespace Hangfire.Raven.Tests
         private readonly Mock<IPersistentJobQueueMonitoringApi> _persistentJobQueueMonitoringApi;
         private readonly PersistentJobQueueProviderCollection _providers;
 
-        public RavenMonitoringApiFacts()
+        public RavenMonitoringApiFacts(ITestOutputHelper helper) : base(helper)
         {
             _queue = new Mock<IPersistentJobQueue>();
             _persistentJobQueueMonitoringApi = new Mock<IPersistentJobQueueMonitoringApi>();
@@ -251,7 +253,7 @@ namespace Hangfire.Raven.Tests
 
         private void UseMonitoringApi(Action<IRepository, RavenStorageMonitoringApi> action)
         {
-            using (var repository = new TestRepository())
+            using (var repository = new TestRepository(_session))
             {
                 var storage = new Mock<RavenStorage>(repository);
                 storage.Setup(x => x.QueueProviders).Returns(_providers);

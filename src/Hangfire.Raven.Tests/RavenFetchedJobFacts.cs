@@ -171,14 +171,5 @@ namespace Hangfire.Raven.Tests
         {
             return type.ToString() + "/" + string.Join("/", id);
         }
-
-        private void UseStorage(Action<RavenStorage> action)
-        {
-            using (var repository = new TestRepository(_session))
-            {
-                var storage = new RavenStorage(repository);
-                action(storage);
-            }
-        }
     }
 }
