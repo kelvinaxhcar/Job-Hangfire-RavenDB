@@ -6,7 +6,7 @@ using Xunit;
 
 namespace Hangfire.Raven.Tests
 {
-    public class RavenFetchedJobFacts
+    public class RavenFetchedJobFacts : TesteBase
     {
         private const string JobId = "id";
         private const string Queue = "queue";
@@ -15,6 +15,7 @@ namespace Hangfire.Raven.Tests
         [Fact]
         public void Ctor_ThrowsAnException_WhenStorageIsNull()
         {
+            var a = _session;
             UseStorage(storage =>
             {
                 var exception = Assert.Throws<ArgumentNullException>(
