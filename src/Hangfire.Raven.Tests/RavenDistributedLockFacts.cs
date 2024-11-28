@@ -6,13 +6,17 @@ using Xunit;
 using Hangfire.Raven.DistributedLocks;
 using Hangfire.Raven.Storage;
 using Hangfire.Raven.Entities;
-using Raven.Client.Linq;
 using System.Linq;
 
 namespace Hangfire.Raven.Tests
 {
-    public class RavenDistributedLockFacts
+    public class RavenDistributedLockFacts : TesteBase
     {
+        public RavenDistributedLockFacts(ITestOutputHelper helper) : base(helper)
+        {
+
+        }
+
         [Fact]
         public void Ctor_ThrowsAnException_WhenResourceIsNull()
         {
@@ -165,15 +169,6 @@ namespace Hangfire.Raven.Tests
                     Assert.True(expireAt > initialExpireAt);
                 }
             });
-        }
-
-        private static void UseStorage(Action<RavenStorage> action)
-        {
-            using (var repository = new TestRepository())
-            {
-                var storage = new RavenStorage(repository);
-                action(storage);
-            }
         }
     }
 }

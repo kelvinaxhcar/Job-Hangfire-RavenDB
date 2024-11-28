@@ -242,7 +242,10 @@ namespace Hangfire.Raven
                 throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
             using var documentSession = _storage.Repository.OpenSession();
             var heartBeatCutOff = DateTime.UtcNow.Add(timeOut.Negate());
-            List<RavenServer> list = [.. documentSession.Query<RavenServer>().Where((Expression<Func<RavenServer, bool>>)(t => t.LastHeartbeat < heartBeatCutOff))];
+            List<RavenServer> list = documentSession.Query<RavenServer>()
+                .Where(t => t.LastHeartbeat < heartBeatCutOff)
+                .ToList();
+
             foreach (RavenServer entity in list)
                 documentSession.Delete(entity);
             documentSession.SaveChanges();
@@ -264,7 +267,15 @@ namespace Hangfire.Raven
             using var documentSession = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenSet), key);
             var ravenSet = documentSession.Load<RavenSet>(id);
-            return ravenSet == null ? [] : ravenSet.Scores.Skip(startingFrom).Take(endingAt - startingFrom + 1).Select(t => t.Key).ToList();
+
+            return ravenSet == null
+                ? new List<string>()
+                : ravenSet.Scores
+                    .Skip(startingFrom)
+                    .Take(endingAt - startingFrom + 1)
+                    .Select(t => t.Key)
+                    .ToList();
+
         }
 
         public override TimeSpan GetSetTtl(string key)

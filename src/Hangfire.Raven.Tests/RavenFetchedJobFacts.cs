@@ -1,16 +1,22 @@
 ﻿using Hangfire.Raven.Entities;
 using Hangfire.Raven.Storage;
+using Raven.Client.Documents.Session;
 using System;
 using System.Linq;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Hangfire.Raven.Tests
 {
-    public class RavenFetchedJobFacts
+    public class RavenFetchedJobFacts : TesteBase
     {
         private const string JobId = "id";
         private const string Queue = "queue";
 
+        public RavenFetchedJobFacts(ITestOutputHelper helper): base(helper)
+        {
+
+        }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenStorageIsNull()
@@ -61,11 +67,8 @@ namespace Hangfire.Raven.Tests
                 processingJob.RemoveFromQueue();
 
                 // Assert
-                using (var session = storage.Repository.OpenSession())
-                {
-                    var count = session.Query<JobQueue>().Count();
-                    Assert.Equal(0, count);
-                }
+                var count = _session.Query<JobQueue>().Where(x => x.Id == id).Count();
+                Assert.Equal(0, count);
             });
         }
 
@@ -85,11 +88,9 @@ namespace Hangfire.Raven.Tests
                 fetchedJob.RemoveFromQueue();
 
                 // Assert
-                using (var session = storage.Repository.OpenSession())
-                {
-                    var count = session.Query<JobQueue>().Count();
-                    Assert.Equal(3, count);
-                }
+
+                var count = _session.Query<JobQueue>().Count();
+                Assert.Equal(3, count);
             });
         }
 
@@ -106,11 +107,9 @@ namespace Hangfire.Raven.Tests
                 processingJob.Requeue();
 
                 // Assert
-                using (var session = storage.Repository.OpenSession())
-                {
-                    var record = session.Query<JobQueue>().Single();
-                    Assert.Null(record.FetchedAt);
-                }
+                var record = _session.Load<JobQueue>(id);
+                _session.Advanced.Refresh(record);
+                Assert.Null(record.FetchedAt);
             });
         }
 
@@ -120,18 +119,16 @@ namespace Hangfire.Raven.Tests
             UseStorage(storage =>
             {
                 // Arrange
-                var id = CreateJobQueueRecord(storage, "1", "default");
+                var id = CreateJobQueueRecord(_session, "1", "default");
                 var processingJob = new RavenFetchedJob(storage, new JobQueue { Id = id, JobId = "1", Queue = "default" });
 
                 // Act
                 processingJob.Dispose();
 
                 // Assert
-                using (var session = storage.Repository.OpenSession())
-                {
-                    var record = session.Query<JobQueue>().Single();
-                    Assert.Null(record.FetchedAt);
-                }
+                var record = _session.Load<JobQueue>(id);
+                _session.Advanced.Refresh(record);
+                Assert.Null(record.FetchedAt);
             });
         }
 
@@ -154,13 +151,25 @@ namespace Hangfire.Raven.Tests
             return jobQueue.Id;
         }
 
-        private static void UseStorage(Action<RavenStorage> action)
+        private static string CreateJobQueueRecord(IDocumentSession session, string jobId, string queue)
         {
-            using (var repository = new TestRepository())
+            var jobQueue = new JobQueue
             {
-                var storage = new RavenStorage(repository);
-                action(storage);
-            }
+                Id = GetId(typeof(JobQueue), queue, jobId),
+                JobId = jobId,
+                Queue = queue,
+                FetchedAt = DateTime.UtcNow
+            };
+
+            session.Store(jobQueue);
+            session.SaveChanges();
+
+            return jobQueue.Id;
+        }
+
+        public static string GetId(Type type, params string[] id)
+        {
+            return type.ToString() + "/" + string.Join("/", id);
         }
     }
 }

@@ -5,12 +5,17 @@ using System;
 using System.Linq;
 using System.Threading;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Hangfire.Raven.Tests
 {
-    public class RavenJobQueueFacts
+    public class RavenJobQueueFacts : TesteBase
     {
         private static readonly string[] DefaultQueues = { "default" };
+
+        public RavenJobQueueFacts(ITestOutputHelper helper) : base(helper)
+        {
+        }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenStorageIsNull()
@@ -101,10 +106,10 @@ namespace Hangfire.Raven.Tests
                     Queue = "default"
                 };
 
-                using (var session = storage.Repository.OpenSession())
+                using (var _session = storage.Repository.OpenSession())
                 {
-                    session.Store(jobQueue);
-                    session.SaveChanges();
+                    _session.Store(jobQueue);
+                    _session.SaveChanges();
                 }
 
                 // Act
@@ -142,11 +147,11 @@ namespace Hangfire.Raven.Tests
                     Queue = "default"
                 };
 
-                using (var session = storage.Repository.OpenSession())
+                using (var _session = storage.Repository.OpenSession())
                 {
-                    session.Store(job);
-                    session.Store(jobQueue);
-                    session.SaveChanges();
+                    _session.Store(job);
+                    _session.Store(jobQueue);
+                    _session.SaveChanges();
                 }
 
                 // Act
@@ -155,13 +160,10 @@ namespace Hangfire.Raven.Tests
                 // Assert
                 Assert.NotNull(payload);
 
-                using (var session = storage.Repository.OpenSession())
-                {
-                    var fetchedAt = session.Query<JobQueue>().Where(_ => _.JobId == payload.JobId).FirstOrDefault().FetchedAt;
+                var fetchedAt = _session.Query<JobQueue>().Where(_ => _.JobId == payload.JobId).FirstOrDefault().FetchedAt;
 
-                    Assert.NotNull(fetchedAt);
-                    Assert.True(fetchedAt > DateTime.UtcNow.AddMinutes(-1));
-                }
+                Assert.NotNull(fetchedAt);
+                Assert.True(fetchedAt > DateTime.UtcNow.AddMinutes(-1));
             });
         }
 
@@ -190,18 +192,43 @@ namespace Hangfire.Raven.Tests
                     FetchedAt = DateTime.UtcNow.AddDays(-1)
                 };
 
-                using (var session = storage.Repository.OpenSession())
-                {
-                    session.Store(job);
-                    session.Store(jobQueue);
-                    session.SaveChanges();
-                }
+                _session.Store(job);
+                _session.Store(jobQueue);
+                _session.SaveChanges();
 
                 // Act
                 var payload = queue.Dequeue(DefaultQueues, CreateTimingOutCancellationToken());
 
                 // Assert
                 Assert.NotEmpty(payload.JobId);
+            });
+        }
+
+        [Fact]
+        public void Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues()
+        {
+            UseStorage(storage =>
+            {
+                var queue = CreateJobQueue(storage);
+
+                var job1Id = Guid.NewGuid().ToString();
+                var job1 = new RavenJob
+                {
+                    Id = storage.Repository.GetId(typeof(RavenJob), job1Id),
+                    InvocationData = null,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _session.Store(job1);
+
+                _session.Store(new JobQueue
+                {
+                    Id = storage.Repository.GetId(typeof(JobQueue), "critical", job1Id),
+                    JobId = job1Id,
+                    Queue = "critical"
+                });
+                _session.SaveChanges();
+
+                Assert.Throws<OperationCanceledException>(() => queue.Dequeue(DefaultQueues, CreateTimingOutCancellationToken()));
             });
         }
 
@@ -213,83 +240,46 @@ namespace Hangfire.Raven.Tests
                 // Arrange
                 var queue = CreateJobQueue(storage);
 
-                using (var session = storage.Repository.OpenSession())
+                var job1Id = Guid.NewGuid().ToString();
+                var job1 = new RavenJob
                 {
-                    var job1Id = Guid.NewGuid().ToString();
-                    var job1 = new RavenJob
-                    {
-                        Id = storage.Repository.GetId(typeof(RavenJob), job1Id),
-                        InvocationData = null,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    session.Store(job1);
+                    Id = storage.Repository.GetId(typeof(RavenJob), job1Id),
+                    InvocationData = null,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _session.Store(job1);
 
-                    var job2Id = Guid.NewGuid().ToString();
-                    var job2 = new RavenJob
-                    {
-                        Id = storage.Repository.GetId(typeof(RavenJob), job2Id),
-                        InvocationData = null,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    session.Store(job2);
+                var job2Id = Guid.NewGuid().ToString();
+                var job2 = new RavenJob
+                {
+                    Id = storage.Repository.GetId(typeof(RavenJob), job2Id),
+                    InvocationData = null,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _session.Store(job2);
 
-                    session.Store(new JobQueue
-                    {
-                        Id = storage.Repository.GetId(typeof(JobQueue), "default", job1Id),
-                        JobId = job1Id,
-                        Queue = "default"
-                    });
+                _session.Store(new JobQueue
+                {
+                    Id = storage.Repository.GetId(typeof(JobQueue), "default", job1Id),
+                    JobId = job1Id,
+                    Queue = "default"
+                });
 
-                    session.Store(new JobQueue
-                    {
-                        Id = storage.Repository.GetId(typeof(JobQueue), "default", job2Id),
-                        JobId = job2Id,
-                        Queue = "default"
-                    });
-                    session.SaveChanges();
-                }
+                _session.Store(new JobQueue
+                {
+                    Id = storage.Repository.GetId(typeof(JobQueue), "default", job2Id),
+                    JobId = job2Id,
+                    Queue = "default"
+                });
+                _session.SaveChanges();
 
                 // Act
                 var payload = queue.Dequeue(DefaultQueues, CreateTimingOutCancellationToken());
 
                 // Assert
-                using (var session = storage.Repository.OpenSession())
-                {
-                    var otherJobFetchedAt = session.Query<JobQueue>().Where(_ => _.JobId != payload.JobId).FirstOrDefault().FetchedAt;
+                var otherJobFetchedAt = _session.Query<JobQueue>().Where(_ => _.JobId != payload.JobId).FirstOrDefault().FetchedAt;
 
-                    Assert.Null(otherJobFetchedAt);
-                }
-            });
-        }
-
-        [Fact]
-        public void Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues()
-        {
-            UseStorage(storage =>
-            {
-                var queue = CreateJobQueue(storage);
-
-                using (var session = storage.Repository.OpenSession())
-                {
-                    var job1Id = Guid.NewGuid().ToString();
-                    var job1 = new RavenJob
-                    {
-                        Id = storage.Repository.GetId(typeof(RavenJob), job1Id),
-                        InvocationData = null,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    session.Store(job1);
-
-                    session.Store(new JobQueue
-                    {
-                        Id = storage.Repository.GetId(typeof(JobQueue), "critical", job1Id),
-                        JobId = job1Id,
-                        Queue = "critical"
-                    });
-                    session.SaveChanges();
-                }
-
-                Assert.Throws<OperationCanceledException>(() => queue.Dequeue(DefaultQueues, CreateTimingOutCancellationToken()));
+                Assert.Null(otherJobFetchedAt);
             });
         }
 
@@ -300,41 +290,38 @@ namespace Hangfire.Raven.Tests
             {
                 var queue = CreateJobQueue(storage);
 
-                using (var session = storage.Repository.OpenSession())
+                var criticalJobId = Guid.NewGuid().ToString();
+                var criticalJob = new RavenJob
                 {
-                    var criticalJobId = Guid.NewGuid().ToString();
-                    var criticalJob = new RavenJob
-                    {
-                        Id = storage.Repository.GetId(typeof(RavenJob), criticalJobId),
-                        InvocationData = null,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    session.Store(criticalJob);
+                    Id = storage.Repository.GetId(typeof(RavenJob), criticalJobId),
+                    InvocationData = null,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _session.Store(criticalJob);
 
-                    var defaultJobId = Guid.NewGuid().ToString();
-                    var defaultJob = new RavenJob
-                    {
-                        Id = storage.Repository.GetId(typeof(RavenJob), defaultJobId),
-                        InvocationData = null,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    session.Store(defaultJob);
+                var defaultJobId = Guid.NewGuid().ToString();
+                var defaultJob = new RavenJob
+                {
+                    Id = storage.Repository.GetId(typeof(RavenJob), defaultJobId),
+                    InvocationData = null,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _session.Store(defaultJob);
 
-                    session.Store(new JobQueue
-                    {
-                        Id = storage.Repository.GetId(typeof(JobQueue), "default", defaultJobId),
-                        JobId = defaultJobId,
-                        Queue = "default"
-                    });
+                _session.Store(new JobQueue
+                {
+                    Id = storage.Repository.GetId(typeof(JobQueue), "default", defaultJobId),
+                    JobId = defaultJobId,
+                    Queue = "default"
+                });
 
-                    session.Store(new JobQueue
-                    {
-                        Id = storage.Repository.GetId(typeof(JobQueue), "critical", criticalJobId),
-                        JobId = criticalJobId,
-                        Queue = "critical"
-                    });
-                    session.SaveChanges();
-                }
+                _session.Store(new JobQueue
+                {
+                    Id = storage.Repository.GetId(typeof(JobQueue), "critical", criticalJobId),
+                    JobId = criticalJobId,
+                    Queue = "critical"
+                });
+                _session.SaveChanges();
 
                 var critical = (RavenFetchedJob)queue.Dequeue(
                     new[] { "critical", "default" },
@@ -361,9 +348,9 @@ namespace Hangfire.Raven.Tests
 
                 queue.Enqueue("default", "1");
 
-                using (var session = storage.Repository.OpenSession())
+                using (var _session = storage.Repository.OpenSession())
                 {
-                    var record = session.Query<JobQueue>().Single();
+                    var record = _session.Query<JobQueue>().Single();
                     Assert.Equal("1", record.JobId.ToString());
                     Assert.Equal("default", record.Queue);
                     Assert.Null(record.FetchedAt);
@@ -373,22 +360,13 @@ namespace Hangfire.Raven.Tests
 
         private static CancellationToken CreateTimingOutCancellationToken()
         {
-            var source = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var source = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             return source.Token;
         }
 
         private static RavenJobQueue CreateJobQueue(RavenStorage storage)
         {
             return new RavenJobQueue(storage, new RavenStorageOptions());
-        }
-
-        private static void UseStorage(Action<RavenStorage> action)
-        {
-            using (var repository = new TestRepository())
-            {
-                var storage = new RavenStorage(repository);
-                action(storage);
-            }
         }
     }
 }

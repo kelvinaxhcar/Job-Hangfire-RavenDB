@@ -37,11 +37,11 @@ namespace Hangfire.Raven.JobQueues
             if (queues.Length == 0)
                 throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
 
-            Expression<Func<JobQueue, bool>>[] expressionArray =
-            [
+            Expression<Func<JobQueue, bool>>[] expressionArray = new Expression<Func<JobQueue, bool>>[]
+            {
                 job => job.FetchedAt == null,
-                job => job.FetchedAt < DateTime.UtcNow.AddSeconds(-_options.InvisibilityTimeout.TotalSeconds)
-            ];
+                 job => job.FetchedAt < DateTime.UtcNow.AddSeconds(-_options.InvisibilityTimeout.TotalSeconds)
+            };
 
             int index = 0;
 

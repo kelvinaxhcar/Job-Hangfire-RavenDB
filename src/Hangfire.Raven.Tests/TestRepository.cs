@@ -1,31 +1,38 @@
-﻿using System;
+﻿using Hangfire.Raven.Extensions;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Indexes;
+using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Queries;
+using Raven.Client.Documents.Session;
+using Raven.Embedded;
+using System;
 using System.Collections.Generic;
-using Raven.Abstractions.Data;
-using Raven.Client;
-using Raven.Client.Indexes;
-using Raven.Client.Embedded;
-using Hangfire.Raven.Listeners;
 
 namespace Hangfire.Raven.Tests
 {
     public class TestRepository : IRepository
     {
-        private readonly EmbeddableDocumentStore _documentStore;
 
-        public TestRepository()
+        private readonly IDocumentStore _documentStore;
+        private readonly IDocumentSession _documentSession;
+
+        public TestRepository(IDocumentSession documentSession)
         {
-            _documentStore = new EmbeddableDocumentStore
+            if (documentSession != null)
             {
-                RunInMemory = true,
-                DefaultDatabase = "Hangfire-Raven-Tests",
-                DataDirectory = @"~\Databases\Hangfire-Raven-Tests"
-            };
+                _documentSession = documentSession;
+                _documentStore = _documentSession.Advanced.DocumentStore;
 
-            _documentStore.Listeners.RegisterListener(new NoStaleQueriesListener());
-            _documentStore.Listeners.RegisterListener(new TakeNewestConflictResolutionListener());
-            _documentStore.Initialize();
+                var urls = _documentStore.Urls;       // Array de URLs
+                var database = _documentStore.Database; // Nome do banco de dados
 
-            new RavenDocumentsByEntityName().Execute(_documentStore.DatabaseCommands, _documentStore.Conventions);
+                _documentStore = new DocumentStore
+                {
+                    Urls = urls,
+                    Database = database
+                };
+                _documentStore.Initialize();
+            }
         }
 
         public void Create()
@@ -41,41 +48,20 @@ namespace Hangfire.Raven.Tests
             _documentStore.Dispose();
         }
 
-        public IDisposable DocumentChange(Type documentType, Action<DocumentChangeNotification> action)
-        {
-            return _documentStore.Changes().ForDocumentsStartingWith(GetId(documentType, ""))
-                .Subscribe(new RepositoryObserver<DocumentChangeNotification>(action));
-        }
-
-        public IDisposable DocumentChange(Type documentType, string suffix, Action<DocumentChangeNotification> action)
-        {
-            return _documentStore.Changes().ForDocumentsStartingWith(GetId(documentType, string.Format("{0}/", suffix)))
-                .Subscribe(new RepositoryObserver<DocumentChangeNotification>(action));
-        }
-
         public void ExecuteIndexes(List<AbstractIndexCreationTask> indexes)
         {
-            _documentStore.ExecuteIndexes(indexes);
-        }
-
-        public FacetResults GetFacets(string index, IndexQuery query, List<Facet> facets)
-        {
-            return _documentStore.DatabaseCommands.GetFacets(index, query, facets);
+            _documentStore.ExecuteIndexes(indexes, null);
         }
 
         public string GetId(Type type, params string[] id)
         {
-            return _documentStore.Conventions.FindFullDocumentKeyFromNonStringIdentifier(string.Join("/", id), type, false);
-        }
-
-        public IAsyncDocumentSession OpenAsyncSession()
-        {
-            return _documentStore.OpenAsyncSession();
+            return type.ToString() + "/" + string.Join("/", id);
         }
 
         public IDocumentSession OpenSession()
         {
             return _documentStore.OpenSession();
         }
+
     }
 }
