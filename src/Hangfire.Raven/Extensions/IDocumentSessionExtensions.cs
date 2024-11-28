@@ -1,6 +1,5 @@
 ﻿using Raven.Client.Documents.Session;
 using System;
-using System.Collections.Generic;
 
 namespace Hangfire.Raven.Extensions
 {
@@ -18,52 +17,52 @@ namespace Hangfire.Raven.Extensions
 
         public static void SetExpiry<T>(this IDocumentSession session, string id, TimeSpan expireIn)
         {
-            IDocumentSessionExtensions.SetExpiry(session.GetMetadataForId<T>(id), expireIn);
+            SetExpiry(session.GetMetadataForId<T>(id), expireIn);
         }
 
         public static void SetExpiry<T>(this IDocumentSession session, T obj, TimeSpan expireIn)
         {
-            IDocumentSessionExtensions.SetExpiry(session.GetMetadataForObject<T>(obj), expireIn);
+            SetExpiry(session.GetMetadataForObject<T>(obj), expireIn);
         }
 
         public static void SetExpiry<T>(this IDocumentSession session, T obj, DateTime expireAt)
         {
-            IDocumentSessionExtensions.SetExpiry(session.GetMetadataForObject<T>(obj), expireAt);
+            SetExpiry(session.GetMetadataForObject<T>(obj), expireAt);
         }
 
         private static void SetExpiry(IMetadataDictionary metadata, DateTime expireAt)
         {
-            metadata["@expires"] = (object)expireAt.ToString("O");
+            metadata["@expires"] = expireAt.ToString("O");
         }
 
         private static void SetExpiry(IMetadataDictionary metadata, TimeSpan expireIn)
         {
-            metadata["@expires"] = (object)(DateTime.UtcNow + expireIn).ToString("O");
+            metadata["@expires"] = (DateTime.UtcNow + expireIn).ToString("O");
         }
 
         public static void RemoveExpiry<T>(this IDocumentSession session, string id)
         {
-            IDocumentSessionExtensions.RemoveExpiry(session.GetMetadataForId<T>(id));
+            RemoveExpiry(session.GetMetadataForId<T>(id));
         }
 
         public static void RemoveExpiry<T>(this IDocumentSession session, T obj)
         {
-            IDocumentSessionExtensions.RemoveExpiry(session.GetMetadataForObject<T>(obj));
+            RemoveExpiry(session.GetMetadataForObject<T>(obj));
         }
 
         public static void RemoveExpiry(IMetadataDictionary metadata)
         {
-            ((IDictionary<string, object>)metadata).Remove("@expires");
+            metadata.Remove("@expires");
         }
 
         public static DateTime? GetExpiry<T>(this IDocumentSession session, string id)
         {
-            return IDocumentSessionExtensions.GetExpiry(session.GetMetadataForId<T>(id));
+            return GetExpiry(session.GetMetadataForId<T>(id));
         }
 
         public static DateTime? GetExpiry<T>(this IDocumentSession session, T obj)
         {
-            return IDocumentSessionExtensions.GetExpiry(session.GetMetadataForObject<T>(obj));
+            return GetExpiry(session.GetMetadataForObject<T>(obj));
         }
 
         private static DateTime? GetExpiry(IMetadataDictionary metadata)

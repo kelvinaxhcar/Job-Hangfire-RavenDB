@@ -9,7 +9,7 @@ namespace Hangfire.Raven.Entities
     {
         public RavenJob()
         {
-            this.Parameters = (IDictionary<string, string>)new Dictionary<string, string>();
+            this.Parameters = new Dictionary<string, string>();
             this.History = new List<StateHistoryDto>();
         }
 

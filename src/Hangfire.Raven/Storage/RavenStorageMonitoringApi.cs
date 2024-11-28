@@ -16,7 +16,6 @@ namespace Hangfire.Raven.Storage
     public class RavenStorageMonitoringApi : IMonitoringApi
     {
         private readonly RavenStorage _storage;
-        private const int DefaultBatchSize = 1000;
 
         public RavenStorageMonitoringApi([NotNull] RavenStorage storage)
         {
@@ -98,8 +97,7 @@ namespace Hangfire.Raven.Storage
         {
             using var session = _storage.Repository.OpenSession();
 
-            //TODO
-            session.Query<RavenServer>()
+            _ = session.Query<RavenServer>()
                    .Statistics(out var stats)
                    .Take(0)
                    .ToList();
@@ -107,12 +105,13 @@ namespace Hangfire.Raven.Storage
             var recurringJobsSet = session.Load<RavenSet>(
                 _storage.Repository.GetId(typeof(RavenSet), "recurring-jobs"));
 
-            //TODO 
-            var jobs = session.Query<RavenJob>().ToList(); // Executa a query no RavenDB
+            var jobs = session
+                .Query<RavenJob>()
+                .Where(x => x.StateData != null)
+                .ToList();
 
             var jobStateCounts = jobs
-                                .Where(x => x.StateData != null) // Evita StateData nulo
-                                .GroupBy(x => x.StateData.Name ?? "Unknown") // Substitui nulos após trazer os dados
+                                .GroupBy(x => x.StateData.Name ?? "Unknown")
                                 .Select(x => new { State = x.Key, Count = x.Count() })
                                 .ToDictionary(x => x.State, x => x.Count);
 
@@ -212,7 +211,7 @@ namespace Hangfire.Raven.Storage
         {
             try
             {
-                return invocationData.Deserialize();
+                return invocationData.DeserializeJob();
             }
             catch (JobLoadException)
             {

@@ -45,7 +45,7 @@ namespace Hangfire.Raven.Tests
             {
                 var queue = CreateJobQueue(storage);
 
-                var exception = Assert.Throws<ArgumentNullException>(
+                var exception = Assert.Throws<ArgumentException>(
                     () => queue.Dequeue(null, CreateTimingOutCancellationToken()));
 
                 Assert.Equal("queues", exception.ParamName);

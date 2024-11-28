@@ -1,6 +1,5 @@
 ﻿using Hangfire.Annotations;
 using Hangfire.Raven.Entities;
-using Hangfire.Raven.Extensions;
 using Hangfire.Raven.Storage;
 using Raven.Client.Documents.Linq;
 using System;
@@ -11,12 +10,11 @@ namespace Hangfire.Raven.JobQueues
 {
     public class RavenJobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
     {
-        private RavenStorage _storage;
+        private readonly RavenStorage _storage;
 
         public RavenJobQueueMonitoringApi([NotNull] RavenStorage storage)
         {
-            storage.ThrowIfNull(nameof(storage));
-            _storage = storage;
+            _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         }
 
         public IEnumerable<string> GetQueues()
@@ -31,37 +29,53 @@ namespace Hangfire.Raven.JobQueues
 
         public IEnumerable<string> GetEnqueuedJobIds(string queue, int pageFrom, int perPage)
         {
-            using var documentSession = _storage.Repository.OpenSession();
-            return documentSession
-                .Query<JobQueue>()
-                .Where(a => a.Queue == queue && a.FetchedAt == new DateTime?())
-                .Skip(pageFrom)
-                .Take(perPage)
-                .Select(a => a.JobId)
-                .ToList();
+            return GetJobIdsByQueueAndFetchStatus(queue, isFetched: false, pageFrom, perPage);
         }
 
         public IEnumerable<string> GetFetchedJobIds(string queue, int pageFrom, int perPage)
         {
-            using var documentSession = _storage.Repository.OpenSession();
-            return documentSession
-                .Query<JobQueue>()
-                .Where(a => a.Queue == queue && a.FetchedAt != new DateTime?()).Skip(pageFrom)
-                .Take(perPage)
-                .Select(a => a.JobId)
-                .ToList();
+            return GetJobIdsByQueueAndFetchStatus(queue, isFetched: true, pageFrom, perPage);
         }
 
         public EnqueuedAndFetchedCount GetEnqueuedAndFetchedCount(string queue)
         {
             using var documentSession = _storage.Repository.OpenSession();
-            var num1 = documentSession.Query<JobQueue>().Where(a => a.FetchedAt != new DateTime?() && a.Queue == queue).Count();
-            var num2 = documentSession.Query<JobQueue>().Where(a => a.FetchedAt == new DateTime?() && a.Queue == queue).Count();
-            return new EnqueuedAndFetchedCount()
+            var enqueuedCount = documentSession
+                .Query<JobQueue>()
+                .Count(a => a.Queue == queue && a.FetchedAt == null);
+
+            var fetchedCount = documentSession
+                .Query<JobQueue>()
+                .Count(a => a.Queue == queue && a.FetchedAt != null);
+
+            return new EnqueuedAndFetchedCount
             {
-                EnqueuedCount = new int?(num2),
-                FetchedCount = new int?(num1)
+                EnqueuedCount = enqueuedCount,
+                FetchedCount = fetchedCount
             };
+        }
+
+        public IEnumerable<string> GetJobIdsByQueueAndFetchStatus(string queue, bool isFetched, int pageFrom, int perPage)
+        {
+            using var documentSession = _storage.Repository.OpenSession();
+
+            var query = documentSession.Query<JobQueue>()
+                                       .Where(job => job.Queue == queue);
+
+            if (isFetched)
+            {
+                query = query.Where(job => job.FetchedAt != null);
+            }
+            else
+            {
+                query = query.Where(job => job.FetchedAt == null);
+            }
+
+            return query
+                .Skip(pageFrom)
+                .Take(perPage)
+                .Select(job => job.JobId)
+                .ToList();
         }
     }
 }
