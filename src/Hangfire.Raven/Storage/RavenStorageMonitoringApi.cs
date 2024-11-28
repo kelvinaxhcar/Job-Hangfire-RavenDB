@@ -157,6 +157,7 @@ namespace Hangfire.Raven.Storage
             return GetJobsById<EnqueuedJobDto>(jobIds, CreateEnqueuedJobDto);
         }
 
+
         private EnqueuedJobDto CreateEnqueuedJobDto(RavenJob job, Job deserializedJob, Dictionary<string, string> stateData)
         {
             return new EnqueuedJobDto

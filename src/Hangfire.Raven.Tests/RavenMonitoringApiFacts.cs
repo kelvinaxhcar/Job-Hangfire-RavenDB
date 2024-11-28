@@ -11,6 +11,7 @@ using Hangfire.Raven.Storage;
 using Hangfire.Raven.Entities;
 using System.Linq;
 using Xunit.Abstractions;
+using System.Threading;
 
 namespace Hangfire.Raven.Tests
 {
@@ -137,14 +138,12 @@ namespace Hangfire.Raven.Tests
         [Fact]
         public void EnqueuedJobs_ReturnsEmpty_WhenOneJobExistsThatIsFetched()
         {
-            UseMonitoringApi((repository, monitoringApi) =>
+            UseStorage(storage =>
             {
-                var fetchedJob = CreateJobInState(repository, "1", FetchedStateName);
+                var fetchedJob = CreateJobInState(storage.Repository, "1", FetchedStateName);
+                var monitoringApi = new RavenStorageMonitoringApi(storage);
 
                 var jobIds = new List<string> { fetchedJob.Id };
-                _persistentJobQueueMonitoringApi.Setup(x => x
-                    .GetEnqueuedJobIds(DefaultQueue, From, PerPage))
-                    .Returns(jobIds.Select(x => x.Split(new[] { '/' }, 2)[1]));
 
                 var resultList = monitoringApi.EnqueuedJobs(DefaultQueue, From, PerPage);
 
@@ -155,16 +154,14 @@ namespace Hangfire.Raven.Tests
         [Fact]
         public void EnqueuedJobs_ReturnsUnfetchedJobsOnly_WhenMultipleJobsExistsInFetchedAndUnfetchedStates()
         {
-            UseMonitoringApi((repository, monitoringApi) =>
+            UseStorage(storage =>
             {
-                var unfetchedJob = CreateJobInState(repository, "1", EnqueuedState.StateName);
-                var unfetchedJob2 = CreateJobInState(repository, "2", EnqueuedState.StateName);
-                var fetchedJob = CreateJobInState(repository, "3", FetchedStateName);
+                var monitoringApi = new RavenStorageMonitoringApi(storage);
+                var unfetchedJob = CreateJobInState(storage.Repository, "1", EnqueuedState.StateName);
+                var unfetchedJob2 = CreateJobInState(storage.Repository, "2", EnqueuedState.StateName);
+                var fetchedJob = CreateJobInState(storage.Repository, "3", FetchedStateName);
 
                 var jobIds = new List<string> { unfetchedJob.Id, unfetchedJob2.Id, fetchedJob.Id };
-                _persistentJobQueueMonitoringApi.Setup(x => x
-                    .GetEnqueuedJobIds(DefaultQueue, From, PerPage))
-                    .Returns(jobIds.Select(x => x.Split(new[] { '/' }, 2)[1]));
 
                 var resultList = monitoringApi.EnqueuedJobs(DefaultQueue, From, PerPage);
 
@@ -210,14 +207,12 @@ namespace Hangfire.Raven.Tests
         [Fact]
         public void FetchedJobs_ReturnsEmpty_WhenOneJobExistsThatIsNotFetched()
         {
-            UseMonitoringApi((repository, monitoringApi) =>
+            UseStorage(storage =>
             {
-                var unfetchedJob = CreateJobInState(repository, "1", EnqueuedState.StateName);
+                var monitoringApi = new RavenStorageMonitoringApi(storage);
+                var unfetchedJob = CreateJobInState(storage.Repository, "1", EnqueuedState.StateName);
 
                 var jobIds = new List<string> { unfetchedJob.Id };
-                _persistentJobQueueMonitoringApi.Setup(x => x
-                    .GetFetchedJobIds(DefaultQueue, From, PerPage))
-                    .Returns(jobIds.Select(x => x.Split(new[] { '/' }, 2)[1]));
 
                 var resultList = monitoringApi.FetchedJobs(DefaultQueue, From, PerPage);
 
@@ -294,12 +289,9 @@ namespace Hangfire.Raven.Tests
                 jobQueue.FetchedAt = DateTime.UtcNow;
             }
 
-            using (var session = repository.OpenSession())
-            {
-                session.Store(ravenJob);
-                session.Store(jobQueue);
-                session.SaveChanges();
-            }
+            _session.Store(ravenJob);
+            _session.Store(jobQueue);
+            _session.SaveChanges();
 
             return ravenJob;
         }
