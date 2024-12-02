@@ -132,7 +132,7 @@ namespace Hangfire.Raven.Tests
             });
         }
 
-        private static string CreateJobQueueRecord(RavenStorage storage, string jobId, string queue)
+        private string CreateJobQueueRecord(RavenStorage storage, string jobId, string queue)
         {
             var jobQueue = new JobQueue
             {
@@ -142,11 +142,8 @@ namespace Hangfire.Raven.Tests
                 FetchedAt = DateTime.UtcNow
             };
 
-            using (var session = storage.Repository.OpenSession())
-            {
-                session.Store(jobQueue);
-                session.SaveChanges();
-            }
+            _session.Store(jobQueue);
+            _session.SaveChanges();
 
             return jobQueue.Id;
         }

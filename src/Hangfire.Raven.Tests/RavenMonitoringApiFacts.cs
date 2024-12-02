@@ -11,7 +11,6 @@ using Hangfire.Raven.Storage;
 using Hangfire.Raven.Entities;
 using System.Linq;
 using Xunit.Abstractions;
-using System.Threading;
 
 namespace Hangfire.Raven.Tests
 {
@@ -131,7 +130,7 @@ namespace Hangfire.Raven.Tests
 
                 var resultList = monitoringApi.EnqueuedJobs(DefaultQueue, From, PerPage);
 
-                Assert.Equal(1, resultList.Count);
+                Assert.Single(resultList);
             });
         }
 
@@ -200,7 +199,7 @@ namespace Hangfire.Raven.Tests
 
                 var resultList = monitoringApi.FetchedJobs(DefaultQueue, From, PerPage);
 
-                Assert.Equal(1, resultList.Count);
+                Assert.Single(resultList);
             });
         }
 
