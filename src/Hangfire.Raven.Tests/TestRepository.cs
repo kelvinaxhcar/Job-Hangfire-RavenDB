@@ -1,10 +1,6 @@
-﻿using Hangfire.Raven.Extensions;
-using Raven.Client.Documents;
+﻿using Raven.Client.Documents;
 using Raven.Client.Documents.Indexes;
-using Raven.Client.Documents.Operations;
-using Raven.Client.Documents.Queries;
 using Raven.Client.Documents.Session;
-using Raven.Embedded;
 using System;
 using System.Collections.Generic;
 
@@ -18,21 +14,18 @@ namespace Hangfire.Raven.Tests
 
         public TestRepository(IDocumentSession documentSession)
         {
-            if (documentSession != null)
+            _documentSession = documentSession;
+            _documentStore = _documentSession.Advanced.DocumentStore;
+
+            var urls = _documentStore.Urls;       // Array de URLs
+            var database = _documentStore.Database; // Nome do banco de dados
+
+            _documentStore = new DocumentStore
             {
-                _documentSession = documentSession;
-                _documentStore = _documentSession.Advanced.DocumentStore;
-
-                var urls = _documentStore.Urls;       // Array de URLs
-                var database = _documentStore.Database; // Nome do banco de dados
-
-                _documentStore = new DocumentStore
-                {
-                    Urls = urls,
-                    Database = database
-                };
-                _documentStore.Initialize();
-            }
+                Urls = urls,
+                Database = database
+            };
+            _documentStore.Initialize();
         }
 
         public void Create()
