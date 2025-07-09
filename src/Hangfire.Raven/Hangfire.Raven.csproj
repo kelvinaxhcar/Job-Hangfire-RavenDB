@@ -3,8 +3,8 @@
 	<PropertyGroup>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		<TargetFramework>net7.0</TargetFramework>
-		<AssemblyVersion>3.2.0.0</AssemblyVersion>
-		<FileVersion>3.2.0.0</FileVersion>
+		<AssemblyVersion>3.2.1.0</AssemblyVersion>
+		<FileVersion>3.2.1.0</FileVersion>
 		<Description>RavenDB job storage for Hangfire</Description>
 		<PackageId>Job.Hangfire.Raven6x</PackageId>
 		<Version>1.0.4</Version>
@@ -24,6 +24,22 @@
 		<PackageReference Include="Hangfire.Core" Version="1.8.15" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="RavenDB.Client" Version="6.2.0" />
+		<EmbeddedResource Include="Resources\logo.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Resource.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>Resource.resx</DependentUpon>
+	  </Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Update="Resource.resx">
+	    <Generator>ResXFileCodeGenerator</Generator>
+	    <LastGenOutput>Resource.Designer.cs</LastGenOutput>
+	  </EmbeddedResource>
 	</ItemGroup>
 
 </Project>
