@@ -6,6 +6,7 @@ using Hangfire.Raven.JobQueues;
 using Hangfire.Raven.Storage;
 using Hangfire.Server;
 using Hangfire.Storage;
+using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using System;
 using System.Collections.Generic;
@@ -257,8 +258,11 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             using var documentSession = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenSet), key);
-            var ravenSet = documentSession.Load<RavenSet>(id);
-            return ravenSet == null ? 0L : (long)ravenSet.Scores.Count;
+            return (long)(documentSession.Query<RavenSet>()
+                .Customize(x => x.WaitForNonStaleResults())
+                .Where(x => x.Id == id)
+                .Select(x => x.Scores.Count)
+                .FirstOrDefault());
         }
 
         public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
@@ -266,16 +270,14 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             using var documentSession = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenSet), key);
-            var ravenSet = documentSession.Load<RavenSet>(id);
+            
+            var result = documentSession.Query<RavenSet>()
+                .Customize(x => x.WaitForNonStaleResults())
+                .Where(x => x.Id == id)
+                .Select(x => x.Scores.Skip(startingFrom).Take(endingAt - startingFrom + 1).Select(t => t.Key))
+                .FirstOrDefault();
 
-            return ravenSet == null
-                ? new List<string>()
-                : ravenSet.Scores
-                    .Skip(startingFrom)
-                    .Take(endingAt - startingFrom + 1)
-                    .Select(t => t.Key)
-                    .ToList();
-
+            return result?.ToList() ?? new List<string>();
         }
 
         public override TimeSpan GetSetTtl(string key)
@@ -303,8 +305,12 @@ namespace Hangfire.Raven
         {
             key.ThrowIfNull(nameof(key));
             using var documentSession = _storage.Repository.OpenSession();
-            var ravenHash = documentSession.Load<RavenHash>(_storage.Repository.GetId(typeof(RavenHash), key));
-            return ravenHash == null ? 0L : (long)ravenHash.Fields.Count;
+            var id = _storage.Repository.GetId(typeof(RavenHash), key);
+            return (long)(documentSession.Query<RavenHash>()
+                .Customize(x => x.WaitForNonStaleResults())
+                .Where(x => x.Id == id)
+                .Select(x => x.Fields.Count)
+                .FirstOrDefault());
         }
 
         public override TimeSpan GetHashTtl(string key)
@@ -333,8 +339,11 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             using var documentSession = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenList), key);
-            var ravenList = documentSession.Load<RavenList>(id);
-            return ravenList == null ? 0L : ravenList.Values.Count;
+            return (long)(documentSession.Query<RavenList>()
+                .Customize(x => x.WaitForNonStaleResults())
+                .Where(x => x.Id == id)
+                .Select(x => x.Values.Count)
+                .FirstOrDefault());
         }
 
         public override TimeSpan GetListTtl(string key)
@@ -354,8 +363,14 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             using var documentSession = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenList), key);
-            var ravenList = documentSession.Load<RavenList>(id);
-            return ravenList == null ? new List<string>() : ravenList.Values.Skip(startingFrom).Take(endingAt - startingFrom + 1).ToList();
+            
+            var result = documentSession.Query<RavenList>()
+                .Customize(x => x.WaitForNonStaleResults())
+                .Where(x => x.Id == id)
+                .Select(x => x.Values.Skip(startingFrom).Take(endingAt - startingFrom + 1))
+                .FirstOrDefault();
+
+            return result?.ToList() ?? new List<string>();
         }
 
         public override List<string> GetAllItemsFromList(string key)

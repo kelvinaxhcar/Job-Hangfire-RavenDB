@@ -9,6 +9,7 @@ using Hangfire.Storage;
 using Hangfire.Storage.Monitoring;
 using Raven.Client.Documents.Commands.Batches;
 using Raven.Client.Documents.Operations;
+using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Raven.Client.Exceptions;
 using System;
@@ -39,11 +40,8 @@ namespace Hangfire.Raven
         {
             foreach (var patchRequest in _patchRequests)
             {
-                if (patchRequest.Value.Values.Count != 0)
-                {
-                    var command = new PatchCommandData(patchRequest.Key, null, patchRequest.Value, null);
-                    _session.Advanced.Defer(command);
-                }
+                var command = new PatchCommandData(patchRequest.Key, null, patchRequest.Value, null);
+                _session.Advanced.Defer(command);
             }
 
             try
@@ -95,9 +93,18 @@ namespace Hangfire.Raven
         {
             key.ThrowIfNull(nameof(key));
             items.ThrowIfNull(nameof(items));
-            var orCreateSet = FindOrCreateSet(_storage.Repository.GetId(typeof(RavenSet), key));
-            foreach (string key1 in (IEnumerable<string>)items)
-                orCreateSet.Scores[key1] = 0.0;
+            var id = _storage.Repository.GetId(typeof(RavenSet), key);
+            var patchRequest = new PatchRequest
+            {
+                Script = "for (var i = 0; i < args.items.length; i++) { this.Scores[args.items[i]] = 0.0; }",
+                Values = new Dictionary<string, object> { { "items", items } }
+            };
+            var patchIfMissing = new PatchRequest
+            {
+                Script = "this.Scores = {}; for (var i = 0; i < args.items.length; i++) { this.Scores[args.items[i]] = 0.0; }",
+                Values = new Dictionary<string, object> { { "items", items } }
+            };
+            _session.Advanced.Defer(new PatchCommandData(id, null, patchRequest, patchIfMissing));
         }
 
         public override void AddToQueue(string queue, string jobId)
@@ -132,16 +139,21 @@ namespace Hangfire.Raven
         public void UpdateCounter(string key, TimeSpan expireIn, int value)
         {
             string id = _storage.Repository.GetId(typeof(Counter), key);
-            var existingCounter = _session.Load<Counter>(id);
+            var expires = expireIn != TimeSpan.MinValue ? (object)(DateTime.UtcNow + expireIn).ToString("O") : null;
 
-            if (existingCounter == null)
+            var patchRequest = new PatchRequest
             {
-                CreateCounter(id, value, expireIn);
-            }
-            else
+                Script = "this.Value += args.val; if (args.expires) { this['@metadata']['@expires'] = args.expires; }",
+                Values = new Dictionary<string, object> { { "val", (double)value }, { "expires", expires } }
+            };
+
+            var patchIfMissing = new PatchRequest
             {
-                AddPatchRequest(id, value);
-            }
+                Script = "this.Value = args.val; if (args.expires) { this['@metadata']['@expires'] = args.expires; }",
+                Values = new Dictionary<string, object> { { "val", (double)value }, { "expires", expires } }
+            };
+
+            _session.Advanced.Defer(new PatchCommandData(id, null, patchRequest, patchIfMissing));
         }
 
         private void CreateCounter(string id, int value, TimeSpan expireIn)
@@ -164,7 +176,8 @@ namespace Hangfire.Raven
         {
             var patchRequest = new PatchRequest
             {
-                Script = $"Value += {value}"
+                Script = "this.Value += args.val",
+                Values = new Dictionary<string, object> { { "val", (double)value } }
             };
 
             _patchRequests.Add(new KeyValuePair<string, PatchRequest>(id, patchRequest));
@@ -174,17 +187,30 @@ namespace Hangfire.Raven
 
         public override void AddToSet(string key, string value, double score)
         {
-            FindOrCreateSet(_storage.Repository.GetId(typeof(RavenSet), key)).Scores[value] = score;
+            var id = _storage.Repository.GetId(typeof(RavenSet), key);
+            var patchRequest = new PatchRequest
+            {
+                Script = "this.Scores[args.value] = args.score;",
+                Values = new Dictionary<string, object> { { "value", value }, { "score", score } }
+            };
+            var patchIfMissing = new PatchRequest
+            {
+                Script = "this.Scores = { [args.value]: args.score };",
+                Values = new Dictionary<string, object> { { "value", value }, { "score", score } }
+            };
+            _session.Advanced.Defer(new PatchCommandData(id, null, patchRequest, patchIfMissing));
         }
 
         public override void RemoveFromSet(string key, string value)
         {
             key.ThrowIfNull(nameof(key));
-            var orCreateSet = FindOrCreateSet(_storage.Repository.GetId(typeof(RavenSet), key));
-            orCreateSet.Scores.Remove(value);
-            if (orCreateSet.Scores.Count != 0)
-                return;
-            _session.Delete(orCreateSet);
+            var id = _storage.Repository.GetId(typeof(RavenSet), key);
+            var patchRequest = new PatchRequest
+            {
+                Script = "delete this.Scores[args.value];",
+                Values = new Dictionary<string, object> { { "value", value } }
+            };
+            _session.Advanced.Defer(new PatchCommandData(id, null, patchRequest, null));
         }
 
         public override void RemoveSet(string key)
@@ -208,17 +234,30 @@ namespace Hangfire.Raven
         public override void InsertToList(string key, string value)
         {
             key.ThrowIfNull(nameof(key));
-            FindOrCreateList(_storage.Repository.GetId(typeof(RavenList), key)).Values.Add(value);
+            var id = _storage.Repository.GetId(typeof(RavenList), key);
+            var patchRequest = new PatchRequest
+            {
+                Script = "this.Values.push(args.value);",
+                Values = new Dictionary<string, object> { { "value", value } }
+            };
+            var patchIfMissing = new PatchRequest
+            {
+                Script = "this.Values = [args.value];",
+                Values = new Dictionary<string, object> { { "value", value } }
+            };
+            _session.Advanced.Defer(new PatchCommandData(id, null, patchRequest, patchIfMissing));
         }
 
         public override void RemoveFromList(string key, string value)
         {
             key.ThrowIfNull(nameof(key));
-            var orCreateList = FindOrCreateList(_storage.Repository.GetId(typeof(RavenList), key));
-            orCreateList.Values.RemoveAll(v => v == value);
-            if (orCreateList.Values.Count != 0)
-                return;
-            _session.Delete(orCreateList);
+            var id = _storage.Repository.GetId(typeof(RavenList), key);
+            var patchRequest = new PatchRequest
+            {
+                Script = "this.Values = this.Values.filter(function(v) { return v !== args.value; });",
+                Values = new Dictionary<string, object> { { "value", value } }
+            } ;
+            _session.Advanced.Defer(new PatchCommandData(id, null, patchRequest, null));
         }
 
         public override void TrimList(string key, int keepStartingFrom, int keepEndingAt)
@@ -248,9 +287,18 @@ namespace Hangfire.Raven
         {
             key.ThrowIfNull(nameof(key));
             keyValuePairs.ThrowIfNull(nameof(keyValuePairs));
-            var orCreateHash = FindOrCreateHash(_storage.Repository.GetId(typeof(RavenHash), key));
-            foreach (KeyValuePair<string, string> keyValuePair in keyValuePairs)
-                orCreateHash.Fields[keyValuePair.Key] = keyValuePair.Value;
+            var id = _storage.Repository.GetId(typeof(RavenHash), key);
+            
+            var script = "for (var i = 0; i < args.pairs.length; i++) { this.Fields[args.pairs[i].Key] = args.pairs[i].Value; }";
+            var values = new Dictionary<string, object> { { "pairs", keyValuePairs.ToList() } };
+
+            var patchRequest = new PatchRequest { Script = script, Values = values };
+            var patchIfMissing = new PatchRequest { 
+                Script = "this.Fields = {}; " + script, 
+                Values = values 
+            };
+
+            _session.Advanced.Defer(new PatchCommandData(id, null, patchRequest, patchIfMissing));
         }
 
         public override void RemoveHash(string key)

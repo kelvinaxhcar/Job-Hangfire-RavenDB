@@ -4,6 +4,8 @@ using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
 using Hangfire.Raven.Storage;
 using Hangfire.Storage;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Linq;
 using Raven.Client.Documents.Session;
 using Raven.Client.Exceptions;
 using System;
@@ -18,7 +20,6 @@ namespace Hangfire.Raven.JobQueues
         private static readonly ILog Logger = LogProvider.For<RavenJobQueue>();
         private readonly RavenStorage _storage;
         private readonly RavenStorageOptions _options;
-        private static readonly object _lockObject = new object();
         internal static readonly AutoResetEvent NewItemInQueueEvent = new AutoResetEvent(true);
 
         public RavenJobQueue([NotNull] RavenStorage storage, RavenStorageOptions options)
@@ -55,30 +56,30 @@ namespace Hangfire.Raven.JobQueues
                 {
                     documentSession.Advanced.UseOptimisticConcurrency = true;
 
-                    lock (_lockObject)
+                    var lazyQueries = queues.Select(queue => documentSession
+                        .Query<JobQueue>()
+                        .Customize(x => x.WaitForNonStaleResults())
+                        .Where(expression)
+                        .Where(j => j.Queue == queue)
+                        .Take(1)
+                        .Lazily()
+                    ).ToArray();
+
+                    foreach (var lazyLoad in lazyQueries)
                     {
-                        foreach (string queue in queues)
+                        var jobQueue = lazyLoad.Value.FirstOrDefault();
+                        if (jobQueue != null)
                         {
-                            JobQueue jobQueue = documentSession
-                                .Query<JobQueue>()
-                                .Customize(x => x.WaitForNonStaleResults())
-                                .Where(expression)
-                                .Where(j => j.Queue == queue)
-                                .FirstOrDefault();
-
-                            if (jobQueue != null)
+                            try
                             {
-                                try
-                                {
-                                    jobQueue.FetchedAt = DateTime.UtcNow;
-                                    documentSession.SaveChanges();
+                                jobQueue.FetchedAt = DateTime.UtcNow;
+                                documentSession.SaveChanges();
 
-                                    return new RavenFetchedJob(_storage, jobQueue);
-                                }
-                                catch (ConcurrencyException)
-                                {
-
-                                }
+                                return new RavenFetchedJob(_storage, jobQueue);
+                            }
+                            catch (ConcurrencyException)
+                            {
+                                // Someone else got the job, try next queue or next poll
                             }
                         }
                     }
