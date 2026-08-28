@@ -1,4 +1,4 @@
-﻿using Hangfire.Annotations;
+using Hangfire.Annotations;
 using Hangfire.Logging;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
@@ -38,19 +38,16 @@ namespace Hangfire.Raven.JobQueues
             if (queues.Length == 0)
                 throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
 
-            Expression<Func<JobQueue, bool>>[] expressionArray = new Expression<Func<JobQueue, bool>>[]
-            {
-                job => job.FetchedAt == null,
-                 job => job.FetchedAt < DateTime.UtcNow.AddSeconds(-_options.InvisibilityTimeout.TotalSeconds)
-            };
-
             int index = 0;
 
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                Expression<Func<JobQueue, bool>> expression = expressionArray[index];
+                var timeoutThreshold = DateTime.UtcNow.AddSeconds(-_options.InvisibilityTimeout.TotalSeconds);
+                Expression<Func<JobQueue, bool>> expression = index == 0
+                    ? (job => job.FetchedAt == null)
+                    : (job => job.FetchedAt < timeoutThreshold);
 
                 using (IDocumentSession documentSession = _storage.Repository.OpenSession())
                 {
@@ -85,14 +82,14 @@ namespace Hangfire.Raven.JobQueues
                     }
                 }
 
-                index = (index + 1) % expressionArray.Length;
+                index = (index + 1) % 2;
 
-                if (index == expressionArray.Length - 1)
+                if (index == 0)
                 {
                     WaitHandle.WaitAny(new WaitHandle[]
                     {
-                cancellationToken.WaitHandle,
-                NewItemInQueueEvent
+                        cancellationToken.WaitHandle,
+                        NewItemInQueueEvent
                     }, _options.QueuePollInterval);
 
                     cancellationToken.ThrowIfCancellationRequested();

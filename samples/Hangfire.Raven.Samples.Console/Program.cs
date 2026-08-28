@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Hangfire.Raven.Storage;
 
 namespace Hangfire.Raven.Samples.Console
@@ -46,7 +46,6 @@ namespace Hangfire.Raven.Samples.Console
         public static void Test()
         {
             System.Console.WriteLine($"{x++} Cron Job: Hello, world!");
-            //throw new ArgumentException("fail");
         }
     }
 }

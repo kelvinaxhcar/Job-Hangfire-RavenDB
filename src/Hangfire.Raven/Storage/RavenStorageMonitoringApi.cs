@@ -1,4 +1,4 @@
-﻿using Hangfire.Annotations;
+using Hangfire.Annotations;
 using Hangfire.Common;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
@@ -6,7 +6,9 @@ using Hangfire.Raven.JobQueues;
 using Hangfire.States;
 using Hangfire.Storage;
 using Hangfire.Storage.Monitoring;
+using Raven.Client.Documents;
 using Raven.Client.Documents.Linq;
+using Raven.Client.Documents.Session;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -45,7 +47,7 @@ namespace Hangfire.Raven.Storage
 
         private long GetNumberOfJobsByStateName(string stateName)
         {
-            var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession();
             return session.Query<RavenJob>()
                          .Count(x => x.StateData.Name == stateName);
         }
@@ -81,14 +83,16 @@ namespace Hangfire.Raven.Storage
             List<DateTime> dates,
             Func<DateTime, string> formatAction)
         {
-            var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession();
+            var ids = dates.Select(d => _storage.Repository.GetId(typeof(Counter), formatAction(d))).ToList();
+            var counters = session.Load<Counter>(ids);
             var result = new Dictionary<DateTime, long>();
 
-            foreach (var date in dates)
+            for (int i = 0; i < dates.Count; i++)
             {
-                var id = _storage.Repository.GetId(typeof(Counter), formatAction(date));
-                var counter = session.Load<Counter>(id);
-                result[date] = counter?.Value ?? 0;
+                var id = ids[i];
+                var counter = counters.TryGetValue(id, out var c) ? c : null;
+                result[dates[i]] = counter?.Value ?? 0;
             }
 
             return result;
@@ -98,52 +102,41 @@ namespace Hangfire.Raven.Storage
         {
             using var session = _storage.Repository.OpenSession();
 
-            //TODO
-            session.Query<RavenServer>()
-                   .Statistics(out var stats)
+            var serverLazy = session.Query<RavenServer>()
+                   .Statistics(out var serverStats)
                    .Take(0)
-                   .ToList();
+                   .Lazily();
 
-            var recurringJobsSet = session.Load<RavenSet>(
+            var recurringJobsSetLazy = session.Advanced.Lazily.Load<RavenSet>(
                 _storage.Repository.GetId(typeof(RavenSet), "recurring-jobs"));
 
-            //TODO 
-            var jobs = session.Query<RavenJob>().ToList(); // Executa a query no RavenDB
+            var succeededLazy = session.Query<RavenJob>().Statistics(out var succeededStats).Where(x => x.StateData.Name == SucceededState.StateName).Take(0).Lazily();
+            var scheduledLazy = session.Query<RavenJob>().Statistics(out var scheduledStats).Where(x => x.StateData.Name == ScheduledState.StateName).Take(0).Lazily();
+            var enqueuedLazy = session.Query<RavenJob>().Statistics(out var enqueuedStats).Where(x => x.StateData.Name == EnqueuedState.StateName).Take(0).Lazily();
+            var failedLazy = session.Query<RavenJob>().Statistics(out var failedStats).Where(x => x.StateData.Name == FailedState.StateName).Take(0).Lazily();
+            var processingLazy = session.Query<RavenJob>().Statistics(out var processingStats).Where(x => x.StateData.Name == ProcessingState.StateName).Take(0).Lazily();
+            var deletedLazy = session.Query<RavenJob>().Statistics(out var deletedStats).Where(x => x.StateData.Name == DeletedState.StateName).Take(0).Lazily();
+            var queueCountLazy = session.Query<JobQueue>().Statistics(out var queueStats).Take(0).Lazily();
 
-            var jobStateCounts = jobs
-                                .Where(x => x.StateData != null) // Evita StateData nulo
-                                .GroupBy(x => x.StateData.Name ?? "Unknown") // Substitui nulos após trazer os dados
-                                .Select(x => new { State = x.Key, Count = x.Count() })
-                                .ToDictionary(x => x.State, x => x.Count);
-
-
-
-            var queueCount = session.Query<JobQueue>().Count();
+            _ = serverLazy.Value; // Triggers batch execution of all lazy queries
 
             return new StatisticsDto
             {
-                Servers = stats.TotalResults,
-                Queues = queueCount,
-                Recurring = recurringJobsSet?.Scores?.Count ?? 0,
-                Succeeded = GetStateCount(jobStateCounts, SucceededState.StateName),
-                Scheduled = GetStateCount(jobStateCounts, ScheduledState.StateName),
-                Enqueued = GetStateCount(jobStateCounts, EnqueuedState.StateName),
-                Failed = GetStateCount(jobStateCounts, FailedState.StateName),
-                Processing = GetStateCount(jobStateCounts, ProcessingState.StateName),
-                Deleted = GetStateCount(jobStateCounts, DeletedState.StateName)
+                Servers = serverStats.TotalResults,
+                Queues = queueStats.TotalResults,
+                Recurring = recurringJobsSetLazy.Value?.Scores?.Count ?? 0,
+                Succeeded = succeededStats.TotalResults,
+                Scheduled = scheduledStats.TotalResults,
+                Enqueued = enqueuedStats.TotalResults,
+                Failed = failedStats.TotalResults,
+                Processing = processingStats.TotalResults,
+                Deleted = deletedStats.TotalResults
             };
-        }
-
-        private static long GetStateCount(Dictionary<string, int> stateCounts, string stateName)
-        {
-            return stateCounts.TryGetValue(stateName, out var count) ? count : 0;
         }
 
         public JobList<DeletedJobDto> DeletedJobs(int from, int count)
         {
-
             return GetJobs(from, count, DeletedState.StateName, (job, deserializedJob, stateData) =>
-
                 new DeletedJobDto
                 {
                     Job = deserializedJob,
@@ -192,7 +185,7 @@ namespace Hangfire.Raven.Storage
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
 
-            var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
             var job = session.Load<RavenJob>(id);
 
@@ -222,7 +215,7 @@ namespace Hangfire.Raven.Storage
 
         public IList<QueueWithTopEnqueuedJobsDto> Queues()
         {
-            var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession();
 
             var queueGroups = session.Query<JobQueue>()
                                    .ToList()
@@ -243,7 +236,7 @@ namespace Hangfire.Raven.Storage
 
         public IList<ServerDto> Servers()
         {
-            var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession();
 
             return session.Query<RavenServer>()
                          .ToList()
@@ -264,7 +257,7 @@ namespace Hangfire.Raven.Storage
             string stateName,
             Func<RavenJob, Job, Dictionary<string, string>, T> selector)
         {
-            var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession();
 
             var jobs = session.Query<RavenJob>()
                             .Customize(x => x.WaitForNonStaleResults())
@@ -288,7 +281,7 @@ namespace Hangfire.Raven.Storage
             IEnumerable<string> jobIds,
             Func<RavenJob, Job, Dictionary<string, string>, T> selector)
         {
-            var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession();
 
             var jobs = session.Load<RavenJob>(
                 jobIds.Select(id => _storage.Repository.GetId(typeof(RavenJob), id)))
@@ -305,72 +298,6 @@ namespace Hangfire.Raven.Storage
                 return new KeyValuePair<string, T>(job.Id.Split('/')[1], dto);
             }));
         }
-
-
-
-        //public JobList<ProcessingJobDto> ProcessingJobs(int from, int count)
-        //{
-        //    return GetJobs(from, count, ProcessingState.StateName, (job, deserializedJob, stateData) =>
-        //        new ProcessingJobDto
-        //        {
-        //            Job = deserializedJob,
-        //            ServerId = stateData.FirstOrDefault(x => x.Key == "ServerId").Value ?? stateData.FirstOrDefault(x => x.Key == "ServerName").Value,
-        //            StartedAt = JobHelper.DeserializeNullableDateTime(stateData.FirstOrDefault(x => x.Key == "StartedAt").Value)
-        //        });
-        //}
-
-        //public JobList<ScheduledJobDto> ScheduledJobs(int from, int count)
-        //{
-        //    return GetJobs(from, count, ScheduledState.StateName, (job, deserializedJob, stateData) =>
-        //        new ScheduledJobDto
-        //        {
-        //            Job = deserializedJob,
-        //            EnqueueAt = JobHelper.DeserializeDateTime(stateData.FirstOrDefault(x => x.Key == "EnqueueAt").Value),
-        //            ScheduledAt = JobHelper.DeserializeNullableDateTime(stateData.FirstOrDefault(x => x.Key == "ScheduledAt").Value)
-        //        });
-        //}
-
-        //public JobList<SucceededJobDto> SucceededJobs(int from, int count)
-        //{
-        //    return GetJobs(from, count, SucceededState.StateName, (job, deserializedJob, stateData) =>
-        //    {
-        //        var performanceDuration = stateData.FirstOrDefault(x => x.Key == "PerformanceDuration").Value;
-        //        var latency = stateData.FirstOrDefault(x => x.Key == "Latency").Value;
-
-        //        long? totalDuration = null;
-        //        if (!string.IsNullOrEmpty(performanceDuration) && !string.IsNullOrEmpty(latency))
-        //        {
-        //            if (long.TryParse(performanceDuration, out var duration) &&
-        //                long.TryParse(latency, out var lat))
-        //            {
-        //                totalDuration = duration + lat;
-        //            }
-        //        }
-
-        //        return new SucceededJobDto
-        //        {
-        //            Job = deserializedJob,
-        //            Result = stateData.FirstOrDefault(x => x.Key == "Result").Value,
-        //            TotalDuration = totalDuration,
-        //            SucceededAt = JobHelper.DeserializeNullableDateTime(stateData.FirstOrDefault(x => x.Key == "SucceededAt").Value),
-        //            InSucceededState = true
-        //        };
-        //    });
-        //}
-
-        //public JobList<FailedJobDto> FailedJobs(int from, int count)
-        //{
-        //    return GetJobs(from, count, FailedState.StateName, (job, deserializedJob, stateData) =>
-        //        new FailedJobDto
-        //        {
-        //            Job = deserializedJob,
-        //            Reason = job.StateData?.Reason,
-        //            ExceptionDetails = stateData.FirstOrDefault(x => x.Key == "ExceptionDetails").Value,
-        //            ExceptionMessage = stateData.FirstOrDefault(x => x.Key == "ExceptionMessage").Value,
-        //            ExceptionType = stateData.FirstOrDefault(x => x.Key == "ExceptionType").Value,
-        //            FailedAt = JobHelper.DeserializeNullableDateTime(stateData.FirstOrDefault(x => x.Key == "FailedAt").Value)
-        //        });
-        //}
 
         public JobList<ProcessingJobDto> ProcessingJobs(int from, int count)
         {
