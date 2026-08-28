@@ -1,5 +1,6 @@
 # Job.Hangfire.Raven6x
 
+[![CI/CD Pipeline](https://github.com/kelvinaxhcar/Job-Hangfire-RavenDB/actions/workflows/ci.yml/badge.svg)](https://github.com/kelvinaxhcar/Job-Hangfire-RavenDB/actions/workflows/ci.yml)
 [![NuGet Version](https://img.shields.io/nuget/v/Job.Hangfire.Raven6x.svg?style=flat-square)](https://www.nuget.org/packages/Job.Hangfire.Raven6x/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Job.Hangfire.Raven6x.svg?style=flat-square)](https://www.nuget.org/packages/Job.Hangfire.Raven6x/)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg?style=flat-square)](https://www.gnu.org/licenses/lgpl-3.0)

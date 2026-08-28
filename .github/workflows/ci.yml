@@ -1,0 +1,78 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      publish_nuget:
+        description: 'Publish package to NuGet.org'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            7.0.x
+            8.0.x
+            9.0.x
+
+      - name: Restore Dependencies
+        run: dotnet restore Hangfire.Raven.sln
+
+      - name: Build Solution
+        run: dotnet build Hangfire.Raven.sln --configuration Release --no-restore
+
+      - name: Run Tests
+        run: dotnet test src/Hangfire.Raven.Tests/Hangfire.Raven.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Pack NuGet Package
+        run: dotnet pack src/Hangfire.Raven/Hangfire.Raven.csproj --configuration Release --no-build --output ./artifacts
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts/*.nupkg
+          retention-days: 14
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_nuget == true)
+
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.HANGFIRE_RAVEN_6X_DB_NUGET || secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg --api-key "$NUGET_API_KEY" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
