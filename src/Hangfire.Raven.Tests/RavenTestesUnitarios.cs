@@ -14,12 +14,17 @@ namespace Hangfire.Raven.Tests
 
         static RavenTestesUnitarios()
         {
+            System.Environment.SetEnvironmentVariable("RAVEN_License__ThrowOnInvalidOrMissingLicense", "false");
+            System.Environment.SetEnvironmentVariable("RAVEN_License_ThrowOnInvalidOrMissingLicense", "false");
+            System.Environment.SetEnvironmentVariable("RAVEN_Setup_Mode", "None");
+
             ConfigureServer(new TestServerOptions
             {
                 FrameworkVersion = null,
                 CommandLineArgs = new List<string>
                 {
-                    "--License.ThrowOnInvalidOrMissingLicense=false"
+                    "--License.ThrowOnInvalidOrMissingLicense=false",
+                    "--Setup.Mode=None"
                 }
             });
         }
