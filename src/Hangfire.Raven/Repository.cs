@@ -1,8 +1,10 @@
 using Hangfire.Raven.Extensions;
+using Hangfire.Raven.Storage;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Operations.Expiration;
+using Raven.Client.Documents.Operations.Revisions;
 using Raven.Client.Documents.Session;
 using Raven.Client.ServerWide;
 using Raven.Client.ServerWide.Operations;
@@ -32,7 +34,7 @@ namespace Hangfire.Raven
 
         public void ExecuteIndexes(List<AbstractIndexCreationTask> indexes)
         {
-            _documentStore.ExecuteIndexes(indexes, null);
+            _documentStore.ExecuteIndexes(indexes);
         }
 
         public void Destroy()
@@ -46,7 +48,18 @@ namespace Hangfire.Raven
         {
             if (_database == null || _documentStore.DatabaseExists(_database))
                 return;
-            _documentStore.Maintenance.Server.Send(new CreateDatabaseOperation(new DatabaseRecord(_database)));
+            try
+            {
+                _documentStore.Maintenance.Server.Send(new CreateDatabaseOperation(new DatabaseRecord(_database)));
+            }
+            catch (Exception)
+            {
+            }
+            ConfigureExpiration();
+        }
+
+        private void ConfigureExpiration()
+        {
             _documentStore.Maintenance.Send(new ConfigureExpirationOperation(new ExpirationConfiguration()
             {
                 Disabled = false,
@@ -66,6 +79,37 @@ namespace Hangfire.Raven
             if (_database == null || !_documentStore.DatabaseExists(_database))
                 return null;
             return _documentStore.Maintenance.Send(new GetStatisticsOperation());
+        }
+
+        public void EnsureRevisionsConfigured(RavenStorageOptions options)
+        {
+            if (options == null || !options.EnableJobRevisions) return;
+
+            try
+            {
+                if (_database == null || !_documentStore.DatabaseExists(_database))
+                    return;
+
+                var config = new RevisionsConfiguration
+                {
+                    Collections = new Dictionary<string, RevisionsCollectionConfiguration>
+                    {
+                        ["RavenJobs"] = new RevisionsCollectionConfiguration
+                        {
+                            Disabled = false,
+                            PurgeOnDelete = options.PurgeJobRevisionsOnDelete,
+                            MinimumRevisionsToKeep = options.MinimumJobRevisionsToKeep,
+                            MinimumRevisionAgeToKeep = options.MinimumJobRevisionAgeToKeep
+                        }
+                    }
+                };
+
+                _documentStore.Maintenance.Send(new ConfigureRevisionsOperation(config));
+            }
+            catch
+            {
+                // Silently handle if database does not yet exist or user has restricted permissions
+            }
         }
 
         public string GetId(Type type, params string[] id)

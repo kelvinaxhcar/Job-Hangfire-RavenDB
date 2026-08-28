@@ -1,3 +1,4 @@
+using Hangfire.Raven.Storage;
 using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Session;
@@ -19,6 +20,8 @@ namespace Hangfire.Raven
         DatabaseStatistics GetDatabaseStatistics();
 
         string GetId(Type type, params string[] id);
+
+        void EnsureRevisionsConfigured(RavenStorageOptions options);
 
         IDocumentSession OpenSession(SessionOptions options = null);
     }

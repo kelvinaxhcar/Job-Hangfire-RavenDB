@@ -60,6 +60,10 @@ namespace Hangfire.Raven.Tests
             return _documentStore?.Maintenance?.Send(new GetStatisticsOperation());
         }
 
+        public void EnsureRevisionsConfigured(Hangfire.Raven.Storage.RavenStorageOptions options)
+        {
+        }
+
         public string GetId(Type type, params string[] id)
         {
             return type.ToString() + "/" + string.Join("/", id);

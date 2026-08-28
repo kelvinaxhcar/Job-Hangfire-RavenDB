@@ -393,5 +393,58 @@ namespace Hangfire.Raven.Storage
         {
             return _storage.QueueProviders.GetProvider(queueName).GetJobQueueMonitoringApi();
         }
+
+        public List<RavenJobRevisionDto> GetJobRevisions(string jobId)
+        {
+            if (string.IsNullOrEmpty(jobId))
+                return new List<RavenJobRevisionDto>();
+
+            try
+            {
+                using var session = _storage.Repository.OpenSession();
+                var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
+
+                var revisions = session.Advanced.Revisions.GetFor<RavenJob>(id);
+                if (revisions == null || revisions.Count == 0)
+                    return new List<RavenJobRevisionDto>();
+
+                var metadataList = session.Advanced.Revisions.GetMetadataFor(id);
+                var result = new List<RavenJobRevisionDto>();
+
+                for (int i = 0; i < revisions.Count; i++)
+                {
+                    var rev = revisions[i];
+                    if (rev == null) continue;
+
+                    var metadata = metadataList != null && i < metadataList.Count ? metadataList[i] : null;
+                    var lastModified = metadata != null && metadata.TryGetValue("@last-modified", out var lm) && lm != null
+                        ? (DateTime.TryParse(lm.ToString(), out var parsedDt) ? parsedDt : (DateTime?)null)
+                        : (DateTime?)null;
+                    var changeVector = metadata != null && metadata.TryGetValue("@change-vector", out var cv)
+                        ? cv?.ToString()
+                        : null;
+
+                    var dataDict = rev.StateData?.Data != null
+                        ? new Dictionary<string, string>(rev.StateData.Data, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>();
+
+                    result.Add(new RavenJobRevisionDto
+                    {
+                        Id = rev.Id,
+                        StateName = rev.StateData?.Name ?? "Created",
+                        Reason = rev.StateData?.Reason,
+                        Timestamp = lastModified ?? rev.CreatedAt,
+                        StateData = dataDict,
+                        ChangeVector = changeVector
+                    });
+                }
+
+                return result;
+            }
+            catch
+            {
+                return new List<RavenJobRevisionDto>();
+            }
+        }
     }
 }

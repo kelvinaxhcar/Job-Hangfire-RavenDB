@@ -487,10 +487,39 @@ namespace Hangfire.Raven.Dashboard.UI5
                                                         '<div class=""code-snippet"">' + (oData.exceptionDetails || oData.exceptionType) + '</div>';
                                         }
 
+                                        var oRevisionsModel = new JSONModel();
+                                        oRevisionsModel.loadData(sApiBase + '/job-revisions?id=' + encodeURIComponent(oData.id));
+
+                                        var oRevisionsTable = new Table({
+                                            headerText: 'Trilha de Auditoria Imutável (RavenDB Document Revisions)',
+                                            columns: [
+                                                new Column({ header: new Text({ text: 'Estado' }), width: '130px' }),
+                                                new Column({ header: new Text({ text: 'Data / Hora' }) }),
+                                                new Column({ header: new Text({ text: 'Informações da Transição' }) })
+                                            ],
+                                            items: {
+                                                path: '/items',
+                                                template: new ColumnListItem({
+                                                    cells: [
+                                                        new ObjectStatus({
+                                                            text: '{stateName}',
+                                                            state: '{= ${stateName} === ""Succeeded"" ? ""Success"" : (${stateName} === ""Failed"" ? ""Error"" : ""None"") }'
+                                                        }),
+                                                        new Text({ text: '{timestamp}' }),
+                                                        new Text({ text: '{= ${reason} || ""Estado persistido com sucesso no cluster RavenDB"" }' })
+                                                    ]
+                                                })
+                                            }
+                                        }).setModel(oRevisionsModel);
+
                                         var oDialog = new Dialog({
-                                            title: 'Detalhes do Job ' + oData.id,
+                                            title: 'Auditoria & Detalhes do Job: ' + oData.id,
+                                            contentWidth: '700px',
                                             type: 'Message',
-                                            content: new FormattedText({ htmlText: sContent }),
+                                            content: [
+                                                new FormattedText({ htmlText: sContent }),
+                                                new Panel({ headerText: 'Histórico de Revisões (Compliance)', content: [oRevisionsTable] })
+                                            ],
                                             beginButton: new Button({
                                                 text: 'Fechar',
                                                 press: function () { oDialog.close(); }
