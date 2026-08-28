@@ -16,14 +16,15 @@ namespace Hangfire.Raven.DistributedLocks
         private static readonly ILog Logger = LogProvider.For<RavenDistributedLock>();
         private static readonly ThreadLocal<Dictionary<string, int>> AcquiredLocks = new ThreadLocal<Dictionary<string, int>>(() => new Dictionary<string, int>());
         private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromMinutes(1.0);
-        private RavenStorage _storage;
-        private string _resource;
+        private readonly RavenStorage _storage;
+        private readonly string _resource;
         private readonly RavenStorageOptions _options;
         private DistributedLock _distributedLock;
         private Timer _heartbeatTimer;
         private bool _completed;
         private readonly object _lockObject = new object();
 
+        private string LockKey => _storage.Repository.GetId(typeof(DistributedLock), _resource);
         private string EventWaitHandleName => GetType().FullName + "." + _resource;
 
         public RavenDistributedLock(
@@ -48,7 +49,9 @@ namespace Hangfire.Raven.DistributedLocks
                 StartHeartBeat();
             }
             else
+            {
                 AcquiredLocks.Value[_resource]++;
+            }
         }
 
         public void Dispose()
@@ -77,42 +80,76 @@ namespace Hangfire.Raven.DistributedLocks
         {
             try
             {
-                DateTime dateTime = DateTime.Now.Add(timeout);
-                int millisecondsTimeout = timeout.TotalMilliseconds > 10000.0 ? 2000 : (int)(timeout.TotalMilliseconds / 5.0);
-                while (dateTime >= DateTime.Now)
+                DateTime deadline = DateTime.UtcNow.Add(timeout);
+                int millisecondsTimeout = timeout.TotalMilliseconds > 10000.0 ? 2000 : Math.Max(50, (int)(timeout.TotalMilliseconds / 5.0));
+
+                while (true)
                 {
-                    _distributedLock = new DistributedLock()
-                    {
-                        ClientId = _storage.Options.ClientId,
-                        Resource = _resource
-                    };
                     using (IDocumentSession session = _storage.Repository.OpenSession())
                     {
-                        session.Advanced.UseOptimisticConcurrency = true;
-                        session.Store((object)_distributedLock);
-                        session.SetExpiry(_distributedLock, _options.DistributedLockLifetime);
-                        try
+                        var existingLock = session.Advanced.ClusterTransaction.GetCompareExchangeValue<DistributedLock>(LockKey);
+
+                        if (existingLock == null || existingLock.Value == null)
                         {
-                            session.SaveChanges();
-                            return;
-                        }
-                        catch (ConcurrencyException)
-                        {
-                            _distributedLock = null;
+                            var lockValue = new DistributedLock
+                            {
+                                ClientId = _storage.Options.ClientId,
+                                Resource = _resource,
+                                AcquiredAt = DateTime.UtcNow,
+                                ExpiresAt = DateTime.UtcNow.Add(_options.DistributedLockLifetime)
+                            };
+
+                            session.Advanced.ClusterTransaction.CreateCompareExchangeValue(LockKey, lockValue);
+
                             try
                             {
-                                new EventWaitHandle(false, EventResetMode.AutoReset, EventWaitHandleName).WaitOne(millisecondsTimeout);
+                                session.SaveChanges();
+                                _distributedLock = lockValue;
+                                return;
                             }
-                            catch (PlatformNotSupportedException)
+                            catch (ConcurrencyException)
                             {
-                                Thread.Sleep(millisecondsTimeout);
+                                // Another node/thread claimed the compare exchange value concurrently
                             }
+                        }
+                        else if (existingLock.Value.ExpiresAt.HasValue && existingLock.Value.ExpiresAt.Value < DateTime.UtcNow)
+                        {
+                            // Lock has expired, atomically take ownership
+                            existingLock.Value.ClientId = _storage.Options.ClientId;
+                            existingLock.Value.AcquiredAt = DateTime.UtcNow;
+                            existingLock.Value.ExpiresAt = DateTime.UtcNow.Add(_options.DistributedLockLifetime);
+
+                            try
+                            {
+                                session.SaveChanges();
+                                _distributedLock = existingLock.Value;
+                                return;
+                            }
+                            catch (ConcurrencyException)
+                            {
+                                // Another node claimed the expired compare exchange value concurrently
+                            }
+                        }
+
+                        if (DateTime.UtcNow >= deadline)
+                        {
+                            break;
+                        }
+
+                        try
+                        {
+                            new EventWaitHandle(false, EventResetMode.AutoReset, EventWaitHandleName).WaitOne(millisecondsTimeout);
+                        }
+                        catch (PlatformNotSupportedException)
+                        {
+                            Thread.Sleep(millisecondsTimeout);
                         }
                     }
                 }
+
                 throw new DistributedLockTimeoutException(_resource);
             }
-            catch (DistributedLockTimeoutException ex)
+            catch (DistributedLockTimeoutException)
             {
                 throw;
             }
@@ -130,20 +167,26 @@ namespace Hangfire.Raven.DistributedLocks
                 {
                     using (IDocumentSession documentSession = _storage.Repository.OpenSession())
                     {
-                        documentSession.Delete(_distributedLock.Id);
-                        documentSession.SaveChanges();
+                        var cmpXchg = documentSession.Advanced.ClusterTransaction.GetCompareExchangeValue<DistributedLock>(LockKey);
+                        if (cmpXchg != null && cmpXchg.Value != null && cmpXchg.Value.ClientId == _storage.Options.ClientId)
+                        {
+                            documentSession.Advanced.ClusterTransaction.DeleteCompareExchangeValue(cmpXchg.Key, cmpXchg.Index);
+                            documentSession.SaveChanges();
+                        }
                         _distributedLock = null;
                     }
                 }
-                if (!EventWaitHandle.TryOpenExisting(EventWaitHandleName, out EventWaitHandle result))
-                {
-                    return;
-                }
 
-                result.Set();
-            }
-            catch (PlatformNotSupportedException ex)
-            {
+                try
+                {
+                    if (EventWaitHandle.TryOpenExisting(EventWaitHandleName, out EventWaitHandle result))
+                    {
+                        result.Set();
+                    }
+                }
+                catch (PlatformNotSupportedException)
+                {
+                }
             }
             catch (Exception ex)
             {
@@ -159,12 +202,19 @@ namespace Hangfire.Raven.DistributedLocks
             {
                 lock (_lockObject)
                 {
+                    if (_completed)
+                        return;
+
                     try
                     {
                         Logger.InfoFormat("..Heartbeat for resource {0}", _resource);
                         using var session = _storage.Repository.OpenSession();
-                        IDocumentSessionExtensions.SetExpiry<string>(session, _distributedLock.Id, _options.DistributedLockLifetime);
-                        session.SaveChanges();
+                        var cmpXchg = session.Advanced.ClusterTransaction.GetCompareExchangeValue<DistributedLock>(LockKey);
+                        if (cmpXchg != null && cmpXchg.Value != null && cmpXchg.Value.ClientId == _storage.Options.ClientId)
+                        {
+                            cmpXchg.Value.ExpiresAt = DateTime.UtcNow.Add(_options.DistributedLockLifetime);
+                            session.SaveChanges();
+                        }
                     }
                     catch (Exception ex)
                     {
