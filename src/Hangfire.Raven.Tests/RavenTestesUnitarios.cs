@@ -16,7 +16,11 @@ namespace Hangfire.Raven.Tests
         {
             ConfigureServer(new TestServerOptions
             {
-                FrameworkVersion = null
+                FrameworkVersion = null,
+                CommandLineArgs = new List<string>
+                {
+                    "--License.ThrowOnInvalidOrMissingLicense=false"
+                }
             });
         }
 
