@@ -75,10 +75,11 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: NuGet Login (OIDC Trusted Publishing)
+        id: login
         uses: NuGet/login@v1
         with:
           user: Kelvin_Axhcar
 
       - name: Push to NuGet.org
         run: |
-          dotnet nuget push ./artifacts/*.nupkg --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+          dotnet nuget push ./artifacts/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
