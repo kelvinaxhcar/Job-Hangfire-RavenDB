@@ -200,8 +200,19 @@ namespace Hangfire.Raven.Dashboard.UI5
 
             if (path.EndsWith("/servers", StringComparison.OrdinalIgnoreCase))
             {
-                var servers = monitoringApi.Servers();
-                await context.Response.WriteAsync(JsonConvert.SerializeObject(new { items = servers }, JsonSettings));
+                IList<ServerDto> servers = null;
+                try { servers = monitoringApi.Servers(); } catch { servers = new List<ServerDto>(); }
+                await context.Response.WriteAsync(JsonConvert.SerializeObject(new
+                {
+                    items = (servers ?? new List<ServerDto>()).Select(s => new
+                    {
+                        name = s.Name,
+                        workersCount = s.WorkersCount,
+                        queues = s.Queues,
+                        startedAt = s.StartedAt,
+                        heartbeat = s.Heartbeat
+                    })
+                }, JsonSettings));
                 return;
             }
 

@@ -359,6 +359,29 @@ namespace Hangfire.Raven.Dashboard.UI5
                     }
                 });
 
+                var oServersOverviewTable = new Table({
+                    headerText: 'Servidores Ativos no Cluster',
+                    columns: [
+                        new Column({ header: new Text({ text: 'Servidor / Host' }) }),
+                        new Column({ header: new Text({ text: 'Workers' }) }),
+                        new Column({ header: new Text({ text: 'Filas Atendidas' }) }),
+                        new Column({ header: new Text({ text: 'Último Heartbeat' }) }),
+                        new Column({ header: new Text({ text: 'Status' }) })
+                    ],
+                    items: {
+                        path: '/servers',
+                        template: new ColumnListItem({
+                            cells: [
+                                new ObjectIdentifier({ title: '{name}' }),
+                                new ObjectNumber({ number: '{workersCount}', state: 'Information' }),
+                                new Text({ text: '{= ${queues} ? ${queues}.join("", "") : ""default"" }' }),
+                                new Text({ text: '{heartbeat}' }),
+                                new ObjectStatus({ text: 'Online', state: 'Success', icon: 'sap-icon://sys-enter-2' })
+                            ]
+                        })
+                    }
+                }).setModel(oOverviewModel);
+
                 var oQueuesTable = new Table({
                     headerText: 'Filas Ativas (Queues)',
                     columns: [
@@ -407,6 +430,7 @@ namespace Hangfire.Raven.Dashboard.UI5
                     content: [
                         oKpiContainer,
                         oChartsContainer,
+                        new Panel({ headerText: 'Servidores Ativos no Cluster', content: [oServersOverviewTable] }),
                         new Panel({ headerText: 'Resumo das Filas de Mensageria', content: [oQueuesTable] }),
                         new Panel({ headerText: 'Índices RavenDB e Desempenho', content: [oIndexesTable] })
                     ]
@@ -534,7 +558,8 @@ namespace Hangfire.Raven.Dashboard.UI5
                         new Column({ header: new Text({ text: 'Servidor / Host' }) }),
                         new Column({ header: new Text({ text: 'Trabalhadores (Workers)' }) }),
                         new Column({ header: new Text({ text: 'Filas Atendidas' }) }),
-                        new Column({ header: new Text({ text: 'Último Heartbeat' }) })
+                        new Column({ header: new Text({ text: 'Último Heartbeat' }) }),
+                        new Column({ header: new Text({ text: 'Status' }) })
                     ],
                     items: {
                         path: '/items',
@@ -543,7 +568,8 @@ namespace Hangfire.Raven.Dashboard.UI5
                                 new ObjectIdentifier({ title: '{name}' }),
                                 new ObjectNumber({ number: '{workersCount}', state: 'Information' }),
                                 new Text({ text: '{= ${queues} ? ${queues}.join("", "") : ""default"" }' }),
-                                new Text({ text: '{heartbeat}' })
+                                new Text({ text: '{heartbeat}' }),
+                                new ObjectStatus({ text: 'Online', state: 'Success', icon: 'sap-icon://sys-enter-2' })
                             ]
                         })
                     }

@@ -285,11 +285,11 @@ namespace Hangfire.Raven.Storage
                          .ToList()
                          .Select(server => new ServerDto
                          {
-                             Name = server.Id.Split('/')[1],
+                             Name = server.Id != null && server.Id.Contains("/") ? server.Id.Split(new[] { '/' }, 2)[1] : (server.Id ?? "Server"),
                              Heartbeat = server.LastHeartbeat,
-                             Queues = server.Data.Queues.ToList(),
-                             StartedAt = server.Data.StartedAt ?? DateTime.MinValue,
-                             WorkersCount = server.Data.WorkerCount
+                             Queues = server.Data?.Queues?.ToList() ?? new List<string>(),
+                             StartedAt = server.Data?.StartedAt ?? DateTime.MinValue,
+                             WorkersCount = server.Data?.WorkerCount ?? 0
                          })
                          .ToList();
         }
