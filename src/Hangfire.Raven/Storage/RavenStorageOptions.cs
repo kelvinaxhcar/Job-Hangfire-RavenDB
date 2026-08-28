@@ -62,6 +62,8 @@ namespace Hangfire.Raven.Storage
 
         public bool PurgeJobRevisionsOnDelete { get; set; } = false;
 
+        public bool EnableChangesApiQueueEvents { get; set; } = true;
+
         public string ClientId => _clientId;
     }
 }

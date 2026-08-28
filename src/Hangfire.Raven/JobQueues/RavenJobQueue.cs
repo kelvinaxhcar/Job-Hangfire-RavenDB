@@ -6,6 +6,7 @@ using Hangfire.Raven.Indexes;
 using Hangfire.Raven.Storage;
 using Hangfire.Storage;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Changes;
 using Raven.Client.Documents.Linq;
 using Raven.Client.Documents.Session;
 using Raven.Client.Exceptions;
@@ -16,12 +17,14 @@ using System.Threading;
 
 namespace Hangfire.Raven.JobQueues
 {
-    public class RavenJobQueue : IPersistentJobQueue
+    public class RavenJobQueue : IPersistentJobQueue, IDisposable
     {
         private static readonly ILog Logger = LogProvider.For<RavenJobQueue>();
         private readonly RavenStorage _storage;
         private readonly RavenStorageOptions _options;
-        internal static readonly AutoResetEvent NewItemInQueueEvent = new AutoResetEvent(true);
+        public static readonly AutoResetEvent NewItemInQueueEvent = new AutoResetEvent(true);
+        private IDatabaseChanges _databaseChanges;
+        private IDisposable _changesSubscription;
 
         public RavenJobQueue([NotNull] RavenStorage storage, RavenStorageOptions options)
         {
@@ -29,6 +32,49 @@ namespace Hangfire.Raven.JobQueues
             options.ThrowIfNull(nameof(options));
             _storage = storage;
             _options = options;
+
+            SubscribeToChanges();
+        }
+
+        private void SubscribeToChanges()
+        {
+            if (!_options.EnableChangesApiQueueEvents) return;
+
+            try
+            {
+                var docStore = _storage.Repository.DocumentStore;
+                if (docStore == null) return;
+
+                _databaseChanges = docStore.Changes(_storage.Repository.DatabaseName);
+                _changesSubscription = _databaseChanges.ForDocumentsInCollection<JobQueue>()
+                    .Subscribe(new ActionObserver<DocumentChange>(change =>
+                    {
+                        if (change != null && change.Type == DocumentChangeTypes.Put)
+                        {
+                            NewItemInQueueEvent.Set();
+                        }
+                    }));
+
+                _databaseChanges.EnsureConnectedNow();
+            }
+            catch (Exception ex)
+            {
+                Logger.WarnException("Could not initialize RavenDB Changes API for JobQueue real-time notifications. Falling back to periodic polling.", ex);
+            }
+        }
+
+        private class ActionObserver<T> : IObserver<T>
+        {
+            private readonly Action<T> _onNext;
+
+            public ActionObserver(Action<T> onNext)
+            {
+                _onNext = onNext;
+            }
+
+            public void OnCompleted() { }
+            public void OnError(Exception error) { }
+            public void OnNext(T value) => _onNext?.Invoke(value);
         }
 
         [NotNull]
@@ -111,6 +157,19 @@ namespace Hangfire.Raven.JobQueues
                 };
                 documentSession.Store((object)entity);
                 documentSession.SaveChanges();
+            }
+            NewItemInQueueEvent.Set();
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _changesSubscription?.Dispose();
+                _databaseChanges?.Dispose();
+            }
+            catch
+            {
             }
         }
     }

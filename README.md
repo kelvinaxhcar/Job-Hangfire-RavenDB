@@ -20,6 +20,7 @@
 - 🚀 **High-Throughput Bulk Insert (`IJobStorageBatchConnection`)**: Native streaming `BulkInsert` operation for enqueuing thousands of jobs per second with minimal memory and HTTP overhead.
 - ⚡ **Native Asynchronous Operations (`IStorageConnectionAsync` & `IWriteOnlyTransactionAsync`)**: Full non-blocking async storage operations backed by RavenDB's `IAsyncDocumentSession` and `SaveChangesAsync()`.
 - 📜 **Immutable Job State Audit Trail (RavenDB Revisions)**: Native Document Revisions integration capturing the full lifecycle and state transitions of every job with compliance audit history.
+- 🔔 **Event-Driven Dequeue (RavenDB Changes API)**: Instant push-based queue notifications (< 1ms latency) via WebSocket changes listener with automatic polling fallback.
 - 🦅 **RavenDB Storage & Index Metrics**: Full cluster observability (database size, total documents, index health status).
 
 ---
