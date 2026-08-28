@@ -1,4 +1,6 @@
 using Hangfire.Raven.Storage;
+using Raven.Client.Documents;
+using Raven.Client.Documents.BulkInsert;
 using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Session;
@@ -24,5 +26,9 @@ namespace Hangfire.Raven
         void EnsureRevisionsConfigured(RavenStorageOptions options);
 
         IDocumentSession OpenSession(SessionOptions options = null);
+
+        BulkInsertOperation BulkInsert(string database = null);
+
+        IDocumentStore DocumentStore { get; }
     }
 }

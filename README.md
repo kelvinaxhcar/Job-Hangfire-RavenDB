@@ -17,6 +17,7 @@
 - 📦 **Atomic Patches**: Utilizes RavenDB deferred JavaScript patches for high-throughput counters, set operations, and queue mutations.
 - ⏱️ **Automatic Expiration & TTL**: Native document expiration support for completed/expired jobs, stats, and locks.
 - 📊 **Real-Time OpenUI5 / SAP Fiori Enterprise Dashboard**: Modern Single Page Application with interactive real-time charts (Chart.js), analytical KPI tiles, Jobs Explorer with fast filters, cluster servers, and theme switcher (Horizon Light / Dark).
+- 🚀 **High-Throughput Bulk Insert (`IJobStorageBatchConnection`)**: Native streaming `BulkInsert` operation for enqueuing thousands of jobs per second with minimal memory and HTTP overhead.
 - 📜 **Immutable Job State Audit Trail (RavenDB Revisions)**: Native Document Revisions integration capturing the full lifecycle and state transitions of every job with compliance audit history.
 - 🦅 **RavenDB Storage & Index Metrics**: Full cluster observability (database size, total documents, index health status).
 
@@ -150,6 +151,17 @@ Chains dependent jobs that run automatically when the parent job finishes:
 ```csharp
 var parentJobId = BackgroundJob.Enqueue(() => Console.WriteLine("Parent task completed!"));
 BackgroundJob.ContinueJobWith(parentJobId, () => Console.WriteLine("Continuation task executed!"));
+```
+
+### High-Performance Bulk Enqueue
+Stream hundreds or thousands of jobs directly into RavenDB in a single batch:
+```csharp
+using Hangfire.Raven.Extensions;
+
+var tasks = Enumerable.Range(1, 1000)
+    .Select(i => (Expression<Action>)(() => ProcessOrder(i)));
+
+List<string> jobIds = JobStorage.Current.BulkEnqueue(tasks, queue: "heavy-processing");
 ```
 
 ---

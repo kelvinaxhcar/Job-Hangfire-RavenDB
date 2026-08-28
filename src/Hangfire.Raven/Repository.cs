@@ -1,6 +1,7 @@
 using Hangfire.Raven.Extensions;
 using Hangfire.Raven.Storage;
 using Raven.Client.Documents;
+using Raven.Client.Documents.BulkInsert;
 using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Operations.Expiration;
@@ -111,6 +112,13 @@ namespace Hangfire.Raven
                 // Silently handle if database does not yet exist or user has restricted permissions
             }
         }
+
+        public BulkInsertOperation BulkInsert(string database = null)
+        {
+            return _documentStore.BulkInsert(database ?? _database);
+        }
+
+        public IDocumentStore DocumentStore => _documentStore;
 
         public string GetId(Type type, params string[] id)
         {
