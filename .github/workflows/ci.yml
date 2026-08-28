@@ -41,12 +41,6 @@ jobs:
         run: dotnet build Hangfire.Raven.sln --configuration Release --no-restore
 
       - name: Run Tests
-        env:
-          RAVEN_License__ThrowOnInvalidOrMissingLicense: "false"
-          RAVEN_License_ThrowOnInvalidOrMissingLicense: "false"
-          RAVEN_Setup_Mode: "None"
-          RAVEN_Security_UnsecuredAccessAllowed: "PublicNetwork"
-          RAVEN_ARGS: "--License.ThrowOnInvalidOrMissingLicense=false --Setup.Mode=None"
         run: dotnet test src/Hangfire.Raven.Tests/Hangfire.Raven.Tests.csproj --configuration Release --no-build --verbosity normal
 
       - name: Pack NuGet Package

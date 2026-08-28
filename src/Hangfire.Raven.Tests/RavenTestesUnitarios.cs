@@ -14,36 +14,9 @@ namespace Hangfire.Raven.Tests
 
         static RavenTestesUnitarios()
         {
-            try
-            {
-                var baseDir = System.AppContext.BaseDirectory;
-                var serverDir = System.IO.Path.Combine(baseDir, "RavenDBServer");
-                System.IO.Directory.CreateDirectory(serverDir);
-                var content = @"{
-  ""ServerUrl"": ""http://127.0.0.1:0"",
-  ""Setup.Mode"": ""None"",
-  ""License.ThrowOnInvalidOrMissingLicense"": false,
-  ""Security.UnsecuredAccessAllowed"": ""PublicNetwork""
-}";
-                System.IO.File.WriteAllText(System.IO.Path.Combine(serverDir, "settings.json"), content);
-                System.IO.File.WriteAllText(System.IO.Path.Combine(baseDir, "settings.json"), content);
-                System.IO.File.WriteAllText(System.IO.Path.Combine(serverDir, "license.json"), "{}");
-                System.IO.File.WriteAllText(System.IO.Path.Combine(baseDir, "license.json"), "{}");
-            }
-            catch { }
-
-            System.Environment.SetEnvironmentVariable("RAVEN_License__ThrowOnInvalidOrMissingLicense", "false");
-            System.Environment.SetEnvironmentVariable("RAVEN_License_ThrowOnInvalidOrMissingLicense", "false");
-            System.Environment.SetEnvironmentVariable("RAVEN_Setup_Mode", "None");
-
             ConfigureServer(new TestServerOptions
             {
-                FrameworkVersion = null,
-                CommandLineArgs = new List<string>
-                {
-                    "--License.ThrowOnInvalidOrMissingLicense=false",
-                    "--Setup.Mode=None"
-                }
+                FrameworkVersion = null
             });
         }
 
