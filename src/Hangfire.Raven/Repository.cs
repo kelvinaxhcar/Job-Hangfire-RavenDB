@@ -1,6 +1,7 @@
-﻿using Hangfire.Raven.Extensions;
+using Hangfire.Raven.Extensions;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Indexes;
+using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Operations.Expiration;
 using Raven.Client.Documents.Session;
 using Raven.Client.ServerWide;
@@ -55,7 +56,17 @@ namespace Hangfire.Raven
 
         public void Dispose() => _documentStore.Dispose();
 
-        IDocumentSession IRepository.OpenSession() => _documentStore.OpenSession();
+        public string DatabaseName => _database;
+
+        public IDocumentSession OpenSession(SessionOptions options = null) =>
+            options != null ? _documentStore.OpenSession(options) : _documentStore.OpenSession();
+
+        public DatabaseStatistics GetDatabaseStatistics()
+        {
+            if (_database == null || !_documentStore.DatabaseExists(_database))
+                return null;
+            return _documentStore.Maintenance.Send(new GetStatisticsOperation());
+        }
 
         public string GetId(Type type, params string[] id)
         {

@@ -56,7 +56,7 @@ namespace Hangfire.Raven.Tests
             var advancedMock = new Mock<IAdvancedSessionOperations>();
             var clusterTxMock = new Mock<IClusterTransactionOperations>();
 
-            repositoryMock.Setup(r => r.OpenSession()).Returns(sessionMock.Object);
+            repositoryMock.Setup(r => r.OpenSession(It.IsAny<SessionOptions>())).Returns(sessionMock.Object);
             repositoryMock.Setup(r => r.GetId(typeof(DistributedLock), "resource1")).Returns("DistributedLocks/resource1");
             sessionMock.Setup(s => s.Advanced).Returns(advancedMock.Object);
             advancedMock.Setup(a => a.ClusterTransaction).Returns(clusterTxMock.Object);
@@ -96,7 +96,7 @@ namespace Hangfire.Raven.Tests
             var advancedMock = new Mock<IAdvancedSessionOperations>();
             var clusterTxMock = new Mock<IClusterTransactionOperations>();
 
-            repositoryMock.Setup(r => r.OpenSession()).Returns(sessionMock.Object);
+            repositoryMock.Setup(r => r.OpenSession(It.IsAny<SessionOptions>())).Returns(sessionMock.Object);
             repositoryMock.Setup(r => r.GetId(typeof(DistributedLock), "reentrant_res")).Returns("DistributedLocks/reentrant_res");
             sessionMock.Setup(s => s.Advanced).Returns(advancedMock.Object);
             advancedMock.Setup(a => a.ClusterTransaction).Returns(clusterTxMock.Object);
@@ -125,7 +125,7 @@ namespace Hangfire.Raven.Tests
             var advancedMock = new Mock<IAdvancedSessionOperations>();
             var clusterTxMock = new Mock<IClusterTransactionOperations>();
 
-            repositoryMock.Setup(r => r.OpenSession()).Returns(sessionMock.Object);
+            repositoryMock.Setup(r => r.OpenSession(It.IsAny<SessionOptions>())).Returns(sessionMock.Object);
             repositoryMock.Setup(r => r.GetId(typeof(DistributedLock), "busy_res")).Returns("DistributedLocks/busy_res");
             sessionMock.Setup(s => s.Advanced).Returns(advancedMock.Object);
             advancedMock.Setup(a => a.ClusterTransaction).Returns(clusterTxMock.Object);
@@ -157,7 +157,7 @@ namespace Hangfire.Raven.Tests
             var advancedMock = new Mock<IAdvancedSessionOperations>();
             var clusterTxMock = new Mock<IClusterTransactionOperations>();
 
-            repositoryMock.Setup(r => r.OpenSession()).Returns(sessionMock.Object);
+            repositoryMock.Setup(r => r.OpenSession(It.IsAny<SessionOptions>())).Returns(sessionMock.Object);
             repositoryMock.Setup(r => r.GetId(typeof(DistributedLock), "expired_res")).Returns("DistributedLocks/expired_res");
             sessionMock.Setup(s => s.Advanced).Returns(advancedMock.Object);
             advancedMock.Setup(a => a.ClusterTransaction).Returns(clusterTxMock.Object);

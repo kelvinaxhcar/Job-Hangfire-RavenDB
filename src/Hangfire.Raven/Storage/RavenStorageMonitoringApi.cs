@@ -1,5 +1,6 @@
 using Hangfire.Annotations;
 using Hangfire.Common;
+using Hangfire.Raven.Dashboard;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
 using Hangfire.Raven.Indexes;
@@ -133,6 +134,47 @@ namespace Hangfire.Raven.Storage
                 Processing = processingStats.TotalResults,
                 Deleted = deletedStats.TotalResults
             };
+        }
+
+        public RavenStorageMetricsDto GetRavenMetrics()
+        {
+            var stats = _storage.Repository.GetDatabaseStatistics();
+            if (stats == null)
+            {
+                return new RavenStorageMetricsDto
+                {
+                    DatabaseName = _storage.Repository.DatabaseName ?? "Unknown"
+                };
+            }
+
+            var staleCount = stats.StaleIndexes?.Length ?? (stats.Indexes?.Count(i => i.IsStale) ?? 0);
+
+            var dto = new RavenStorageMetricsDto
+            {
+                DatabaseName = _storage.Repository.DatabaseName,
+                DatabaseId = stats.DatabaseId,
+                DocumentsCount = stats.CountOfDocuments,
+                IndexesCount = stats.CountOfIndexes,
+                StaleIndexesCount = staleCount,
+                StaleIndexes = stats.StaleIndexes,
+                SizeOnDisk = stats.SizeOnDisk?.HumaneSize ?? "N/A"
+            };
+
+            if (stats.Indexes != null)
+            {
+                foreach (var idx in stats.Indexes)
+                {
+                    dto.Indexes.Add(new RavenIndexMetricsDto
+                    {
+                        Name = idx.Name,
+                        IsStale = idx.IsStale,
+                        State = idx.State.ToString(),
+                        Type = idx.Type.ToString()
+                    });
+                }
+            }
+
+            return dto;
         }
 
         public JobList<DeletedJobDto> DeletedJobs(int from, int count)
