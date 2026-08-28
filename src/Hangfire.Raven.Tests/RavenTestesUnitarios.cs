@@ -27,6 +27,8 @@ namespace Hangfire.Raven.Tests
 }";
                 System.IO.File.WriteAllText(System.IO.Path.Combine(serverDir, "settings.json"), content);
                 System.IO.File.WriteAllText(System.IO.Path.Combine(baseDir, "settings.json"), content);
+                System.IO.File.WriteAllText(System.IO.Path.Combine(serverDir, "license.json"), "{}");
+                System.IO.File.WriteAllText(System.IO.Path.Combine(baseDir, "license.json"), "{}");
             }
             catch { }
 
