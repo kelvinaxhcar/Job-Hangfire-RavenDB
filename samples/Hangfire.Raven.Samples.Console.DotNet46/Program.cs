@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Hangfire.Raven.Storage;
 
 namespace Hangfire.Raven.Samples.Console.DotNet46
@@ -49,8 +49,7 @@ namespace Hangfire.Raven.Samples.Console.DotNet46
         [AutomaticRetry(Attempts = 2, LogEvents = true, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
         public static void Test()
         {
-            System.Console.WriteLine($"{x++} Cron Job: Hello, world!");
-            //throw new ArgumentException("fail");
+            System.Console.WriteLine(string.Format("{0} Cron Job: Hello, world!", x++));
         }
     }
 }

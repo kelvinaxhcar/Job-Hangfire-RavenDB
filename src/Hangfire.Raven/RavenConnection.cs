@@ -1,4 +1,4 @@
-﻿using Hangfire.Common;
+using Hangfire.Common;
 using Hangfire.Raven.DistributedLocks;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
@@ -6,6 +6,7 @@ using Hangfire.Raven.JobQueues;
 using Hangfire.Raven.Storage;
 using Hangfire.Server;
 using Hangfire.Storage;
+using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using System;
 using System.Collections.Generic;
@@ -275,7 +276,6 @@ namespace Hangfire.Raven
                     .Take(endingAt - startingFrom + 1)
                     .Select(t => t.Key)
                     .ToList();
-
         }
 
         public override TimeSpan GetSetTtl(string key)

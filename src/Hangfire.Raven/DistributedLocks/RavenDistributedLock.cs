@@ -1,4 +1,4 @@
-﻿using Hangfire.Logging;
+using Hangfire.Logging;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
 using Hangfire.Raven.Storage;
@@ -88,7 +88,7 @@ namespace Hangfire.Raven.DistributedLocks
                     };
                     using (IDocumentSession session = _storage.Repository.OpenSession())
                     {
-                        session.Advanced.UseOptimisticConcurrency = false;
+                        session.Advanced.UseOptimisticConcurrency = true;
                         session.Store((object)_distributedLock);
                         session.SetExpiry(_distributedLock, _options.DistributedLockLifetime);
                         try

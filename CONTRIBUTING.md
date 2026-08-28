@@ -1,128 +1,88 @@
-# Contributor Covenant Code of Conduct
+# Contributing to Job.Hangfire.Raven6x
 
-## Our Pledge
+Thank you for your interest in contributing to **Job.Hangfire.Raven6x**! Open-source projects thrive because of community members like you.
 
-We as members, contributors, and leaders pledge to make participation in our
-community a harassment-free experience for everyone, regardless of age, body
-size, visible or invisible disability, ethnicity, sex characteristics, gender
-identity and expression, level of experience, education, socio-economic status,
-nationality, personal appearance, race, religion, or sexual identity
-and orientation.
+The following is a set of guidelines and best practices for contributing to this project.
 
-We pledge to act and interact in ways that contribute to an open, welcoming,
-diverse, inclusive, and healthy community.
+---
 
-## Our Standards
+## Code of Conduct
 
-Examples of behavior that contributes to a positive environment for our
-community include:
+By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). Please report any unacceptable behavior to the project maintainers.
 
-* Demonstrating empathy and kindness toward other people
-* Being respectful of differing opinions, viewpoints, and experiences
-* Giving and gracefully accepting constructive feedback
-* Accepting responsibility and apologizing to those affected by our mistakes,
-  and learning from the experience
-* Focusing on what is best not just for us as individuals, but for the
-  overall community
+---
 
-Examples of unacceptable behavior include:
+## How Can I Contribute?
 
-* The use of sexualized language or imagery, and sexual attention or
-  advances of any kind
-* Trolling, insulting or derogatory comments, and personal or political attacks
-* Public or private harassment
-* Publishing others' private information, such as a physical or email
-  address, without their explicit permission
-* Other conduct which could reasonably be considered inappropriate in a
-  professional setting
+### 1. Reporting Bugs
 
-## Enforcement Responsibilities
+Before creating a bug report:
+- Search existing [GitHub Issues](https://github.com/kelvinaxhcar/Job-Hangfire-RavenDB/issues) to verify the bug hasn't already been reported.
+- Ensure the bug reproduces with the latest version.
 
-Community leaders are responsible for clarifying and enforcing our standards of
-acceptable behavior and will take appropriate and fair corrective action in
-response to any behavior that they deem inappropriate, threatening, offensive,
-or harmful.
+When filing a bug report, include:
+- A clear, descriptive title.
+- Steps to reproduce the issue.
+- Expected behavior vs. actual behavior.
+- Environment details (.NET version, RavenDB server version, Hangfire version, OS).
+- Code snippets, stack traces, or minimal reproduction repository where possible.
 
-Community leaders have the right and responsibility to remove, edit, or reject
-comments, commits, code, wiki edits, issues, and other contributions that are
-not aligned to this Code of Conduct, and will communicate reasons for moderation
-decisions when appropriate.
+### 2. Suggesting Enhancements
 
-## Scope
+Feature requests and performance improvement ideas are always welcome:
+- Open an issue describing the proposed feature or improvement.
+- Explain the use case and why it would be beneficial to the project.
+- Provide example code or API design if applicable.
 
-This Code of Conduct applies within all community spaces, and also applies when
-an individual is officially representing the community in public spaces.
-Examples of representing our community include using an official e-mail address,
-posting via an official social media account, or acting as an appointed
-representative at an online or offline event.
+### 3. Pull Requests
 
-## Enforcement
+1. **Fork the repository** and create a descriptive branch name from `main`:
+   ```bash
+   git checkout -b feature/your-feature-name
+   # or
+   git checkout -b fix/your-bug-fix
+   ```
+2. **Make your changes**:
+   - Adhere to existing coding styles and conventions.
+   - Write clean, maintainable code with clear intent.
+   - Keep pull requests focused on a single change or feature.
+3. **Build and test locally**:
+   ```bash
+   dotnet build
+   dotnet test
+   ```
+4. **Commit with meaningful commit messages**:
+   ```bash
+   git commit -m "feat(storage): optimize query batching for dashboard stats"
+   ```
+5. **Push to your fork** and submit a **Pull Request** targeting the `main` branch.
+6. **Participate in code review**: Respond to feedback or suggestions promptly.
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-.
-All complaints will be reviewed and investigated promptly and fairly.
+---
 
-All community leaders are obligated to respect the privacy and security of the
-reporter of any incident.
+## Development Setup
 
-## Enforcement Guidelines
+### Prerequisites
+- [.NET 7.0 / 8.0 / 9.0 SDK](https://dotnet.microsoft.com/download)
+- [RavenDB 6.x](https://ravendb.net/download) (Standalone instance or via Docker: `docker run -d -p 8080:8080 ravendb/ravendb:latest`)
+- Visual Studio 2022, Rider, or VS Code with C# DevKit
 
-Community leaders will follow these Community Impact Guidelines in determining
-the consequences for any action they deem in violation of this Code of Conduct:
+### Solution Structure
+- `src/Hangfire.Raven/` – The core RavenDB storage provider library.
+- `src/Hangfire.Raven.Tests/` – Unit and integration test suite.
+- `samples/` – Example applications demonstrating integration with ASP.NET Core and Console apps.
 
-### 1. Correction
+---
 
-**Community Impact**: Use of inappropriate language or other behavior deemed
-unprofessional or unwelcome in the community.
+## Coding Standards
 
-**Consequence**: A private, written warning from community leaders, providing
-clarity around the nature of the violation and an explanation of why the
-behavior was inappropriate. A public apology may be requested.
+- Follow standard C# coding conventions and Microsoft design guidelines.
+- Always use `using` or `using var` when opening `IDocumentSession` instances to prevent connection and memory leaks.
+- Favor batching (`Lazily()`, `CountLazily()`) and point-lookups (`session.Load<T>(id)`) over unconstrained query scans.
+- Use explicit metadata assignments (`this['@metadata'] = { '@collection': '...' }`) when creating documents via RavenDB JavaScript patches.
 
-### 2. Warning
+---
 
-**Community Impact**: A violation through a single incident or series
-of actions.
+## Questions & Discussions
 
-**Consequence**: A warning with consequences for continued behavior. No
-interaction with the people involved, including unsolicited interaction with
-those enforcing the Code of Conduct, for a specified period of time. This
-includes avoiding interactions in community spaces as well as external channels
-like social media. Violating these terms may lead to a temporary or
-permanent ban.
-
-### 3. Temporary Ban
-
-**Community Impact**: A serious violation of community standards, including
-sustained inappropriate behavior.
-
-**Consequence**: A temporary ban from any sort of interaction or public
-communication with the community for a specified period of time. No public or
-private interaction with the people involved, including unsolicited interaction
-with those enforcing the Code of Conduct, is allowed during this period.
-Violating these terms may lead to a permanent ban.
-
-### 4. Permanent Ban
-
-**Community Impact**: Demonstrating a pattern of violation of community
-standards, including sustained inappropriate behavior,  harassment of an
-individual, or aggression toward or disparagement of classes of individuals.
-
-**Consequence**: A permanent ban from any sort of public interaction within
-the community.
-
-## Attribution
-
-This Code of Conduct is adapted from the [Contributor Covenant][homepage],
-version 2.0, available at
-https://www.contributor-covenant.org/version/2/0/code_of_conduct.html.
-
-Community Impact Guidelines were inspired by [Mozilla's code of conduct
-enforcement ladder](https://github.com/mozilla/diversity).
-
-[homepage]: https://www.contributor-covenant.org
-
-For answers to common questions about this code of conduct, see the FAQ at
-https://www.contributor-covenant.org/faq. Translations are available at
-https://www.contributor-covenant.org/translations.
+If you have questions regarding usage or architecture, feel free to open a [GitHub Discussion or Issue](https://github.com/kelvinaxhcar/Job-Hangfire-RavenDB/issues).
