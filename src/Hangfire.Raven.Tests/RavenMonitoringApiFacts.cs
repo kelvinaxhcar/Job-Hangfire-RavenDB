@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Threading;
 using Hangfire.Common;
 using Hangfire.States;
 using Hangfire.Storage;
@@ -9,9 +11,8 @@ using Xunit;
 using Hangfire.Raven.JobQueues;
 using Hangfire.Raven.Storage;
 using Hangfire.Raven.Entities;
-using System.Linq;
+using Raven.Client.Documents.Operations;
 using Xunit.Abstractions;
-using System.Threading;
 
 namespace Hangfire.Raven.Tests
 {
@@ -292,6 +293,11 @@ namespace Hangfire.Raven.Tests
             _session.Store(ravenJob);
             _session.Store(jobQueue);
             _session.SaveChanges();
+
+            while (_store.Maintenance.Send(new GetStatisticsOperation()).StaleIndexes.Any())
+            {
+                Thread.Sleep(50);
+            }
 
             return ravenJob;
         }
