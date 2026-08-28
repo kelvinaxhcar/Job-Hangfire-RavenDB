@@ -81,5 +81,10 @@ namespace Hangfire.Raven.Tests
         {
             return options != null ? _documentStore.OpenSession(options) : _documentStore.OpenSession();
         }
+
+        public IAsyncDocumentSession OpenAsyncSession(SessionOptions options = null)
+        {
+            return options != null ? _documentStore.OpenAsyncSession(options) : _documentStore.OpenAsyncSession();
+        }
     }
 }

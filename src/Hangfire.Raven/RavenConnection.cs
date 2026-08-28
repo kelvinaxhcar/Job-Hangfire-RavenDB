@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace Hangfire.Raven
 {
-    public class RavenConnection : JobStorageConnection, IJobStorageBatchConnection
+    public class RavenConnection : JobStorageConnection, IJobStorageBatchConnection, IStorageConnectionAsync
     {
         private readonly RavenStorage _storage;
 
@@ -440,6 +440,236 @@ namespace Hangfire.Raven
         {
             cancellationToken.ThrowIfCancellationRequested();
             return await Task.Run(() => BatchEnqueue(jobs, queue), cancellationToken);
+        }
+
+        public async Task<string> CreateExpiredJobAsync(Job job, IDictionary<string, string> parameters, DateTime createdAt, TimeSpan expireIn, CancellationToken cancellationToken = default)
+        {
+            job.ThrowIfNull(nameof(job));
+            parameters.ThrowIfNull(nameof(parameters));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var invocationData = InvocationData.SerializeJob(job);
+            var expiredJob = Guid.NewGuid().ToString();
+            var entity = new RavenJob()
+            {
+                Id = _storage.Repository.GetId(typeof(RavenJob), expiredJob),
+                InvocationData = invocationData,
+                CreatedAt = createdAt,
+                Parameters = parameters
+            };
+
+            using var session = _storage.Repository.OpenAsyncSession();
+            await session.StoreAsync(entity, cancellationToken);
+            session.SetExpiry(entity, createdAt + expireIn);
+            await session.SaveChangesAsync(cancellationToken);
+            return expiredJob;
+        }
+
+        public async Task<JobData> GetJobDataAsync(string key, CancellationToken cancellationToken = default)
+        {
+            key.ThrowIfNull(nameof(key));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using var documentSession = _storage.Repository.OpenAsyncSession();
+            var id = _storage.Repository.GetId(typeof(RavenJob), key);
+            var ravenJob = await documentSession.LoadAsync<RavenJob>(id, cancellationToken);
+            if (ravenJob == null)
+                return null;
+
+            Job job = null;
+            JobLoadException jobLoadException = null;
+            try
+            {
+                job = ravenJob.InvocationData.DeserializeJob();
+            }
+            catch (JobLoadException ex)
+            {
+                jobLoadException = ex;
+            }
+
+            return new JobData()
+            {
+                Job = job,
+                State = ravenJob.StateData?.Name,
+                CreatedAt = ravenJob.CreatedAt,
+                LoadException = jobLoadException
+            };
+        }
+
+        public async Task<StateData> GetStateDataAsync(string jobId, CancellationToken cancellationToken = default)
+        {
+            jobId.ThrowIfNull(nameof(jobId));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using var documentSession = _storage.Repository.OpenAsyncSession();
+            var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
+            var ravenJob = await documentSession.LoadAsync<RavenJob>(id, cancellationToken);
+            return ravenJob?.StateData;
+        }
+
+        public async Task SetJobParameterAsync(string jobId, string name, string value, CancellationToken cancellationToken = default)
+        {
+            jobId.ThrowIfNull(nameof(jobId));
+            name.ThrowIfNull(nameof(name));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using var documentSession = _storage.Repository.OpenAsyncSession();
+            string id = _storage.Repository.GetId(typeof(RavenJob), jobId);
+            var ravenJob = await documentSession.LoadAsync<RavenJob>(id, cancellationToken);
+            if (ravenJob != null)
+            {
+                ravenJob.Parameters[name] = value;
+                await documentSession.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task<string> GetJobParameterAsync(string jobId, string name, CancellationToken cancellationToken = default)
+        {
+            jobId.ThrowIfNull(nameof(jobId));
+            name.ThrowIfNull(nameof(name));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using var documentSession = _storage.Repository.OpenAsyncSession();
+            var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
+            var ravenJob = await documentSession.LoadAsync<RavenJob>(id, cancellationToken);
+            if (ravenJob == null)
+                return null;
+
+            if (ravenJob.Parameters.TryGetValue(name, out string jobParameter))
+                return jobParameter;
+
+            if (name == "RetryCount")
+            {
+                ravenJob.Parameters["RetryCount"] = "0";
+                await documentSession.SaveChangesAsync(cancellationToken);
+                return "0";
+            }
+
+            return null;
+        }
+
+        public Task<HashSet<string>> GetAllItemsFromSetAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetAllItemsFromSet(key));
+        }
+
+        public Task<string> GetFirstByLowestScoreFromSetAsync(string key, double fromScore, double toScore, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetFirstByLowestScoreFromSet(key, fromScore, toScore));
+        }
+
+        public Task SetRangeInHashAsync(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SetRangeInHash(key, keyValuePairs);
+            return Task.CompletedTask;
+        }
+
+        public Task<Dictionary<string, string>> GetAllEntriesFromHashAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetAllEntriesFromHash(key));
+        }
+
+        public Task AnnounceServerAsync(string serverId, ServerContext context, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AnnounceServer(serverId, context);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveServerAsync(string serverId, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RemoveServer(serverId);
+            return Task.CompletedTask;
+        }
+
+        public Task HeartbeatAsync(string serverId, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Heartbeat(serverId);
+            return Task.CompletedTask;
+        }
+
+        public Task<int> RemoveTimedOutServersAsync(TimeSpan timeOut, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(RemoveTimedOutServers(timeOut));
+        }
+
+        public Task<long> GetSetCountAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetSetCount(key));
+        }
+
+        public Task<List<string>> GetRangeFromSetAsync(string key, int startingFrom, int endingAt, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetRangeFromSet(key, startingFrom, endingAt));
+        }
+
+        public Task<TimeSpan> GetSetTtlAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetSetTtl(key));
+        }
+
+        public Task<long> GetCounterAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetCounter(key));
+        }
+
+        public Task<long> GetHashCountAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetHashCount(key));
+        }
+
+        public Task<TimeSpan> GetHashTtlAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetHashTtl(key));
+        }
+
+        public Task<string> GetValueFromHashAsync(string key, string name, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetValueFromHash(key, name));
+        }
+
+        public Task<long> GetListCountAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetListCount(key));
+        }
+
+        public Task<TimeSpan> GetListTtlAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetListTtl(key));
+        }
+
+        public Task<List<string>> GetRangeFromListAsync(string key, int startingFrom, int endingAt, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetRangeFromList(key, startingFrom, endingAt));
+        }
+
+        public Task<List<string>> GetAllItemsFromListAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(GetAllItemsFromList(key));
+        }
+
+        public Task<IWriteOnlyTransactionAsync> CreateWriteTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<IWriteOnlyTransactionAsync>(new RavenWriteOnlyTransaction(_storage));
         }
     }
 }

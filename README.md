@@ -18,6 +18,7 @@
 - ⏱️ **Automatic Expiration & TTL**: Native document expiration support for completed/expired jobs, stats, and locks.
 - 📊 **Real-Time OpenUI5 / SAP Fiori Enterprise Dashboard**: Modern Single Page Application with interactive real-time charts (Chart.js), analytical KPI tiles, Jobs Explorer with fast filters, cluster servers, and theme switcher (Horizon Light / Dark).
 - 🚀 **High-Throughput Bulk Insert (`IJobStorageBatchConnection`)**: Native streaming `BulkInsert` operation for enqueuing thousands of jobs per second with minimal memory and HTTP overhead.
+- ⚡ **Native Asynchronous Operations (`IStorageConnectionAsync` & `IWriteOnlyTransactionAsync`)**: Full non-blocking async storage operations backed by RavenDB's `IAsyncDocumentSession` and `SaveChangesAsync()`.
 - 📜 **Immutable Job State Audit Trail (RavenDB Revisions)**: Native Document Revisions integration capturing the full lifecycle and state transitions of every job with compliance audit history.
 - 🦅 **RavenDB Storage & Index Metrics**: Full cluster observability (database size, total documents, index health status).
 

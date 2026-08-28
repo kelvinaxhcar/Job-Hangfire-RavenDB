@@ -16,9 +16,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace Hangfire.Raven
 {
-    public class RavenWriteOnlyTransaction : JobStorageTransaction
+    public class RavenWriteOnlyTransaction : JobStorageTransaction, IWriteOnlyTransactionAsync
     {
         private static readonly ILog Logger = LogProvider.For<RavenWriteOnlyTransaction>();
         private readonly RavenStorage _storage;
@@ -317,6 +320,132 @@ namespace Hangfire.Raven
                 _session.Store(entity);
             }
             return entity;
+        }
+
+        public Task CommitAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Commit();
+            return Task.CompletedTask;
+        }
+
+        public Task ExpireJobAsync(string jobId, TimeSpan expireIn, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ExpireJob(jobId, expireIn);
+            return Task.CompletedTask;
+        }
+
+        public Task PersistJobAsync(string jobId, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            PersistJob(jobId);
+            return Task.CompletedTask;
+        }
+
+        public Task SetJobStateAsync(string jobId, IState state, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SetJobState(jobId, state);
+            return Task.CompletedTask;
+        }
+
+        public Task AddJobStateAsync(string jobId, IState state, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AddJobState(jobId, state);
+            return Task.CompletedTask;
+        }
+
+        public Task AddToQueueAsync(string queue, string jobId, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AddToQueue(queue, jobId);
+            return Task.CompletedTask;
+        }
+
+        public Task IncrementCounterAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IncrementCounter(key);
+            return Task.CompletedTask;
+        }
+
+        public Task IncrementCounterAsync(string key, TimeSpan expireIn, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IncrementCounter(key, expireIn);
+            return Task.CompletedTask;
+        }
+
+        public Task DecrementCounterAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DecrementCounter(key);
+            return Task.CompletedTask;
+        }
+
+        public Task DecrementCounterAsync(string key, TimeSpan expireIn, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DecrementCounter(key, expireIn);
+            return Task.CompletedTask;
+        }
+
+        public Task AddToSetAsync(string key, string value, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AddToSet(key, value);
+            return Task.CompletedTask;
+        }
+
+        public Task AddToSetAsync(string key, string value, double score, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AddToSet(key, value, score);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveFromSetAsync(string key, string value, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RemoveFromSet(key, value);
+            return Task.CompletedTask;
+        }
+
+        public Task InsertToListAsync(string key, string value, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            InsertToList(key, value);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveFromListAsync(string key, string value, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RemoveFromList(key, value);
+            return Task.CompletedTask;
+        }
+
+        public Task TrimListAsync(string key, int keepStartingFrom, int keepEndingAt, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            TrimList(key, keepStartingFrom, keepEndingAt);
+            return Task.CompletedTask;
+        }
+
+        public Task SetRangeInHashAsync(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SetRangeInHash(key, keyValuePairs);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveHashAsync(string key, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RemoveHash(key);
+            return Task.CompletedTask;
         }
     }
 }
