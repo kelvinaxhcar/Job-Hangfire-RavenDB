@@ -7,11 +7,12 @@
 		<FileVersion>3.2.1.0</FileVersion>
 		<Description>RavenDB job storage for Hangfire</Description>
 		<PackageId>Job.Hangfire.Raven6x</PackageId>
-		<Version>1.0.5</Version>
+		<Version>1.0.6</Version>
 		<Authors>Kelvin Mateus Axhcar</Authors>
 		<Company>KelvinAxhcar</Company>
 		<Copyright>Copyright @ KelvinAxhcar</Copyright>
-		<PackageLicenseUrl>http://www.gnu.org/licenses/lgpl-3.0.html</PackageLicenseUrl>
+		<PackageLicenseExpression>LGPL-3.0-only</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageProjectUrl>https://github.com/kelvinaxhcar/Job-Hangfire-RavenDB</PackageProjectUrl>
 		<PackageTags>Hangfire;AspNet;MVC;OWIN;RavenDB;Long-Running;Background;Fire-And-Forget;Delayed;Recurring;Tasks;Jobs;Scheduler;Threading;Queues</PackageTags>
 		<RepositoryType>git</RepositoryType>
@@ -24,6 +25,7 @@
 		<PackageReference Include="Hangfire.Core" Version="1.8.15" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="RavenDB.Client" Version="6.2.0" />
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
 		<EmbeddedResource Include="Resources\logo.png" />
 	</ItemGroup>
 

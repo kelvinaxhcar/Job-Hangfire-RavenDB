@@ -2,8 +2,10 @@
 using Hangfire.Raven.JobQueues;
 using Hangfire.Raven.Storage;
 using Hangfire.Storage;
+using Raven.Client.Documents.Operations;
 using System;
 using System.Linq;
+using System.Threading;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -305,6 +307,12 @@ namespace Hangfire.Raven.Tests
                 session.Store(job);
                 session.Store(jobQueue);
                 session.SaveChanges();
+
+                var store = session.Advanced.DocumentStore;
+                while (store.Maintenance.Send(new GetStatisticsOperation()).StaleIndexes.Any())
+                {
+                    Thread.Sleep(50);
+                }
             }
 
             return jobQueue;
