@@ -1,7 +1,10 @@
-﻿using Hangfire.Logging;
+using System.Collections.Generic;
+using Hangfire.Logging;
 using Hangfire.Raven.Extensions;
+using Hangfire.Raven.Indexes;
 using Hangfire.Raven.JobQueues;
 using Hangfire.Storage;
+using Raven.Client.Documents.Indexes;
 
 namespace Hangfire.Raven.Storage
 {
@@ -32,6 +35,7 @@ namespace Hangfire.Raven.Storage
             _options = options;
             _repository = repository;
             _repository.Create();
+            InitializeIndexes();
             InitializeQueueProviders();
         }
 
@@ -54,6 +58,15 @@ namespace Hangfire.Raven.Storage
         public override void WriteOptionsToLog(ILog logger)
         {
             logger.Info("Using the following options for Raven job storage:");
+        }
+
+        private void InitializeIndexes()
+        {
+            _repository.ExecuteIndexes(new List<AbstractIndexCreationTask>
+            {
+                new JobQueue_ByQueueAndFetchedAt(),
+                new RavenJobs_ByStateAndCreatedAt()
+            });
         }
 
         private void InitializeQueueProviders()

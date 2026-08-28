@@ -2,6 +2,7 @@ using Hangfire.Annotations;
 using Hangfire.Logging;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
+using Hangfire.Raven.Indexes;
 using Hangfire.Raven.Storage;
 using Hangfire.Storage;
 using Raven.Client.Documents;
@@ -54,7 +55,7 @@ namespace Hangfire.Raven.JobQueues
                     documentSession.Advanced.UseOptimisticConcurrency = true;
 
                     var lazyQueries = queues.Select(queue => documentSession
-                        .Query<JobQueue>()
+                        .Query<JobQueue, JobQueue_ByQueueAndFetchedAt>()
                         .Customize(x => x.WaitForNonStaleResults())
                         .Where(expression)
                         .Where(j => j.Queue == queue)
