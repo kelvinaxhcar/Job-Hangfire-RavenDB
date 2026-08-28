@@ -1,4 +1,4 @@
-﻿using Hangfire.Raven.Extensions;
+using Hangfire.Raven.Extensions;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
@@ -53,6 +53,13 @@ namespace Hangfire.Raven.Tests
             _documentStore.ExecuteIndexes(indexes, null);
         }
 
+        public string DatabaseName => _documentStore?.Database;
+
+        public DatabaseStatistics GetDatabaseStatistics()
+        {
+            return _documentStore?.Maintenance?.Send(new GetStatisticsOperation());
+        }
+
         public string GetId(Type type, params string[] id)
         {
             return type.ToString() + "/" + string.Join("/", id);
@@ -62,6 +69,5 @@ namespace Hangfire.Raven.Tests
         {
             return _documentStore.OpenSession();
         }
-
     }
 }
