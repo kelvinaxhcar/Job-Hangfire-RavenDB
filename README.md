@@ -13,10 +13,28 @@
 ## Features
 
 - ⚡ **High-Performance Batched Operations**: Uses lazy batch loading and statistics queries to eliminate memory bottlenecks on dashboard metrics and multi-queue lookups.
-- 🔒 **Distributed Locking with Optimistic Concurrency**: Prevents race conditions across clustered workers using RavenDB optimistic concurrency.
+- 🔒 **Cluster-Wide Compare Exchange Distributed Lock**: Atomic distributed locks backed by RavenDB Compare Exchange with heartbeat renewal.
 - 📦 **Atomic Patches**: Utilizes RavenDB deferred JavaScript patches for high-throughput counters, set operations, and queue mutations.
 - ⏱️ **Automatic Expiration & TTL**: Native document expiration support for completed/expired jobs, stats, and locks.
-- 📊 **Full Hangfire Dashboard Integration**: Comprehensive metrics monitoring for enqueued, processing, succeeded, scheduled, failed, and deleted jobs.
+- 📊 **Real-Time OpenUI5 / SAP Fiori Enterprise Dashboard**: Modern Single Page Application with interactive real-time charts (Chart.js), analytical KPI tiles, Jobs Explorer with fast filters, cluster servers, and theme switcher (Horizon Light / Dark).
+- 🦅 **RavenDB Storage & Index Metrics**: Full cluster observability (database size, total documents, index health status).
+
+---
+
+## Dashboards
+
+### 1. OpenUI5 / SAP Fiori Horizon Dashboard (`/hangfire/ui5`)
+Modern enterprise interface designed with **SAP Fiori Horizon**, featuring real-time animated charts, KPI tiles, job filters, active cluster servers, and automatic refresh:
+
+![UI5 Dashboard Overview](docs/images/ui5_dashboard_overview.png)
+
+#### Jobs Explorer & Status Filters:
+![UI5 Jobs Explorer](docs/images/ui5_jobs_explorer.png)
+
+### 2. Classic Hangfire Dashboard with RavenDB Metrics (`/hangfire/ravendb`)
+Extends the classic Hangfire dashboard with dedicated RavenDB storage metrics, document counters, and index health:
+
+![Classic Dashboard RavenDB Metrics](docs/images/classic_ravendb_metrics.png)
 
 ---
 
@@ -45,6 +63,7 @@ In your `Program.cs` or `Startup.cs`:
 ```csharp
 using Hangfire;
 using Hangfire.Raven;
+using Hangfire.Raven.Dashboard;
 using Hangfire.Raven.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,7 +79,8 @@ builder.Services.AddHangfire(config =>
               InvisibilityTimeout = TimeSpan.FromMinutes(30),
               QueuePollInterval = TimeSpan.FromSeconds(2),
               DistributedLockLifetime = TimeSpan.FromMinutes(1)
-          });
+          })
+          .UseRavenDashboard(); // Activates RavenDB Metrics and OpenUI5 / SAP Fiori Dashboard
 });
 
 // Add Hangfire Server
@@ -73,6 +93,9 @@ builder.Services.AddHangfireServer(options =>
 var app = builder.Build();
 
 // Enable Hangfire Dashboard
+// Access Classic Dashboard: /hangfire
+// Access RavenDB Metrics:   /hangfire/ravendb
+// Access OpenUI5 Dashboard: /hangfire/ui5
 app.UseHangfireDashboard("/hangfire");
 
 app.Run();
