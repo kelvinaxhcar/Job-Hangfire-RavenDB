@@ -1,0 +1,6 @@
+{
+  "ServerUrl": "http://127.0.0.1:0",
+  "Setup.Mode": "None",
+  "License.ThrowOnInvalidOrMissingLicense": false,
+  "Security.UnsecuredAccessAllowed": "PublicNetwork"
+}
