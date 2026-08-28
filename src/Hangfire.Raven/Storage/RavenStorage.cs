@@ -35,6 +35,7 @@ namespace Hangfire.Raven.Storage
             _options = options;
             _repository = repository;
             _repository.Create();
+            _repository.EnsureRevisionsConfigured(_options);
             InitializeIndexes();
             InitializeQueueProviders();
         }

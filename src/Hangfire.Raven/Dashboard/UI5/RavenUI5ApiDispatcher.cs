@@ -216,6 +216,18 @@ namespace Hangfire.Raven.Dashboard.UI5
                 return;
             }
 
+            if (path.EndsWith("/job-revisions", StringComparison.OrdinalIgnoreCase))
+            {
+                var jobId = context.Request.GetQuery("id");
+                var revisions = monitoringApi.GetJobRevisions(jobId);
+                await context.Response.WriteAsync(JsonConvert.SerializeObject(new
+                {
+                    id = jobId,
+                    items = revisions
+                }, JsonSettings));
+                return;
+            }
+
             await context.Response.WriteAsync(JsonConvert.SerializeObject(new { status = "ok" }, JsonSettings));
         }
 

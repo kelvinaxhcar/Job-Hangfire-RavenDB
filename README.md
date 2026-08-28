@@ -17,6 +17,7 @@
 - 📦 **Atomic Patches**: Utilizes RavenDB deferred JavaScript patches for high-throughput counters, set operations, and queue mutations.
 - ⏱️ **Automatic Expiration & TTL**: Native document expiration support for completed/expired jobs, stats, and locks.
 - 📊 **Real-Time OpenUI5 / SAP Fiori Enterprise Dashboard**: Modern Single Page Application with interactive real-time charts (Chart.js), analytical KPI tiles, Jobs Explorer with fast filters, cluster servers, and theme switcher (Horizon Light / Dark).
+- 📜 **Immutable Job State Audit Trail (RavenDB Revisions)**: Native Document Revisions integration capturing the full lifecycle and state transitions of every job with compliance audit history.
 - 🦅 **RavenDB Storage & Index Metrics**: Full cluster observability (database size, total documents, index health status).
 
 ---

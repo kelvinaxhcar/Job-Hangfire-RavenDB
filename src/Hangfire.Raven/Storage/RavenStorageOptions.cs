@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Hangfire.Raven.Storage
@@ -53,6 +53,14 @@ namespace Hangfire.Raven.Storage
         }
 
         public IEnumerable<string> QueueNames { get; set; }
+
+        public bool EnableJobRevisions { get; set; } = true;
+
+        public int MinimumJobRevisionsToKeep { get; set; } = 50;
+
+        public TimeSpan MinimumJobRevisionAgeToKeep { get; set; } = TimeSpan.FromDays(14);
+
+        public bool PurgeJobRevisionsOnDelete { get; set; } = false;
 
         public string ClientId => _clientId;
     }
