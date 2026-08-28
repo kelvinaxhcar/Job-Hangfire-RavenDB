@@ -20,6 +20,6 @@ namespace Hangfire.Raven
 
         string GetId(Type type, params string[] id);
 
-        IDocumentSession OpenSession();
+        IDocumentSession OpenSession(SessionOptions options = null);
     }
 }

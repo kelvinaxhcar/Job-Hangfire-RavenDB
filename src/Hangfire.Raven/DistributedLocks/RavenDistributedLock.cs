@@ -85,7 +85,7 @@ namespace Hangfire.Raven.DistributedLocks
 
                 while (true)
                 {
-                    using (IDocumentSession session = _storage.Repository.OpenSession())
+                    using (IDocumentSession session = _storage.Repository.OpenSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide }))
                     {
                         var existingLock = session.Advanced.ClusterTransaction.GetCompareExchangeValue<DistributedLock>(LockKey);
 
@@ -165,7 +165,7 @@ namespace Hangfire.Raven.DistributedLocks
             {
                 if (_distributedLock != null)
                 {
-                    using (IDocumentSession documentSession = _storage.Repository.OpenSession())
+                    using (IDocumentSession documentSession = _storage.Repository.OpenSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide }))
                     {
                         var cmpXchg = documentSession.Advanced.ClusterTransaction.GetCompareExchangeValue<DistributedLock>(LockKey);
                         if (cmpXchg != null && cmpXchg.Value != null && cmpXchg.Value.ClientId == _storage.Options.ClientId)
@@ -208,7 +208,7 @@ namespace Hangfire.Raven.DistributedLocks
                     try
                     {
                         Logger.InfoFormat("..Heartbeat for resource {0}", _resource);
-                        using var session = _storage.Repository.OpenSession();
+                        using var session = _storage.Repository.OpenSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide });
                         var cmpXchg = session.Advanced.ClusterTransaction.GetCompareExchangeValue<DistributedLock>(LockKey);
                         if (cmpXchg != null && cmpXchg.Value != null && cmpXchg.Value.ClientId == _storage.Options.ClientId)
                         {

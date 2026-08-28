@@ -58,7 +58,8 @@ namespace Hangfire.Raven
 
         public string DatabaseName => _database;
 
-        public IDocumentSession OpenSession() => _documentStore.OpenSession();
+        public IDocumentSession OpenSession(SessionOptions options = null) =>
+            options != null ? _documentStore.OpenSession(options) : _documentStore.OpenSession();
 
         public DatabaseStatistics GetDatabaseStatistics()
         {

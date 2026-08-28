@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
+using Hangfire.Raven.Dashboard;
 using Hangfire.Raven.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -25,7 +26,9 @@ namespace Hangfire.Raven.Samples.AspNetCore
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddMvc();
-            services.AddHangfire(t => t.UseRavenStorage(Configuration["ConnectionStrings:RavenDebugUrl"], Configuration["ConnectionStrings:RavenDebugDatabase"]));
+            services.AddHangfire(t => t
+                .UseRavenStorage(Configuration["ConnectionStrings:RavenDebugUrl"], Configuration["ConnectionStrings:RavenDebugDatabase"])
+                .UseRavenDashboard());
             services.AddApplicationInsightsTelemetry();
         }
 

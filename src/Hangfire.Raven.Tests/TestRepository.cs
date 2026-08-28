@@ -65,9 +65,9 @@ namespace Hangfire.Raven.Tests
             return type.ToString() + "/" + string.Join("/", id);
         }
 
-        public IDocumentSession OpenSession()
+        public IDocumentSession OpenSession(SessionOptions options = null)
         {
-            return _documentStore.OpenSession();
+            return options != null ? _documentStore.OpenSession(options) : _documentStore.OpenSession();
         }
     }
 }
