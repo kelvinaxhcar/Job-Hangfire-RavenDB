@@ -14,9 +14,11 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 
+using System.Threading.Tasks;
+
 namespace Hangfire.Raven
 {
-    public class RavenConnection : JobStorageConnection
+    public class RavenConnection : JobStorageConnection, IJobStorageBatchConnection
     {
         private readonly RavenStorage _storage;
 
@@ -365,6 +367,79 @@ namespace Hangfire.Raven
             var id = _storage.Repository.GetId(typeof(RavenList), key);
             var ravenList = documentSession.Load<RavenList>(id);
             return ravenList == null ? new List<string>() : ravenList.Values;
+        }
+
+        public List<string> BatchEnqueue(IEnumerable<BatchJobItem> jobs, string queue = "default")
+        {
+            if (jobs == null) return new List<string>();
+
+            var jobList = jobs.ToList();
+            if (jobList.Count == 0) return new List<string>();
+
+            var resultJobIds = new List<string>(jobList.Count);
+            var queueName = string.IsNullOrEmpty(queue) ? "default" : queue;
+
+            using (var bulk = _storage.Repository.BulkInsert())
+            {
+                foreach (var item in jobList)
+                {
+                    if (item.Job == null)
+                        throw new ArgumentNullException(nameof(item.Job), "Job cannot be null in batch item.");
+
+                    var jobId = item.JobId ?? Guid.NewGuid().ToString();
+                    var invocationData = InvocationData.SerializeJob(item.Job);
+                    var state = item.InitialState ?? new Hangfire.States.EnqueuedState(queueName);
+                    var createdAt = DateTime.UtcNow;
+
+                    var ravenJob = new RavenJob
+                    {
+                        Id = _storage.Repository.GetId(typeof(RavenJob), jobId),
+                        InvocationData = invocationData,
+                        CreatedAt = createdAt,
+                        Parameters = item.Parameters ?? new Dictionary<string, string>(),
+                        StateData = new StateData
+                        {
+                            Name = state.Name,
+                            Reason = state.Reason,
+                            Data = state.SerializeData()
+                        },
+                        History = new List<Hangfire.Storage.Monitoring.StateHistoryDto>
+                        {
+                            new Hangfire.Storage.Monitoring.StateHistoryDto
+                            {
+                                StateName = state.Name,
+                                Reason = state.Reason,
+                                Data = state.SerializeData(),
+                                CreatedAt = createdAt
+                            }
+                        }
+                    };
+
+                    bulk.Store(ravenJob, ravenJob.Id);
+
+                    if (string.Equals(state.Name, Hangfire.States.EnqueuedState.StateName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var queueEntity = new JobQueue
+                        {
+                            Id = _storage.Repository.GetId(typeof(JobQueue), queueName, jobId),
+                            JobId = jobId,
+                            Queue = queueName,
+                            FetchedAt = null
+                        };
+                        bulk.Store(queueEntity, queueEntity.Id);
+                    }
+
+                    resultJobIds.Add(jobId);
+                }
+            }
+
+            return resultJobIds;
+        }
+
+        public async Task<List<string>> BatchEnqueueAsync(IEnumerable<BatchJobItem> jobs, string queue = "default", CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await Task.Run(() => BatchEnqueue(jobs, queue), cancellationToken);
         }
     }
 }

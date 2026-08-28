@@ -1,5 +1,6 @@
 using Hangfire.Raven.Extensions;
 using Raven.Client.Documents;
+using Raven.Client.Documents.BulkInsert;
 using Raven.Client.Documents.Indexes;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
@@ -67,6 +68,13 @@ namespace Hangfire.Raven.Tests
         public string GetId(Type type, params string[] id)
         {
             return type.ToString() + "/" + string.Join("/", id);
+        }
+
+        public IDocumentStore DocumentStore => _documentStore;
+
+        public BulkInsertOperation BulkInsert(string database = null)
+        {
+            return _documentStore?.BulkInsert(database ?? _documentStore?.Database);
         }
 
         public IDocumentSession OpenSession(SessionOptions options = null)
