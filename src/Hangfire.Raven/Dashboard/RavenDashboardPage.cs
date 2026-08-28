@@ -21,6 +21,9 @@ namespace Hangfire.Raven.Dashboard
 
             WriteLiteral("<div class=\"row\">\r\n");
             WriteLiteral("<div class=\"col-md-12\">\r\n");
+            WriteLiteral("<div class=\"pull-right\" style=\"margin-top: 20px;\">\r\n");
+            WriteLiteral("<a href=\"ui5\" class=\"btn btn-primary\"><i class=\"glyphicon glyphicon-th-large\"></i> Abrir Dashboard em SAP Fiori / UI5</a>\r\n");
+            WriteLiteral("</div>\r\n");
             WriteLiteral("<h1 class=\"page-header\">RavenDB Storage Metrics</h1>\r\n");
 
             // Overview Cards Row
