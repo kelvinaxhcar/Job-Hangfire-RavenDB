@@ -27,6 +27,8 @@ namespace Hangfire.Raven
 
         IDocumentSession OpenSession(SessionOptions options = null);
 
+        IAsyncDocumentSession OpenAsyncSession(SessionOptions options = null);
+
         BulkInsertOperation BulkInsert(string database = null);
 
         IDocumentStore DocumentStore { get; }

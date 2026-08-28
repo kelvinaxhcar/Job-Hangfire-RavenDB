@@ -75,6 +75,9 @@ namespace Hangfire.Raven
         public IDocumentSession OpenSession(SessionOptions options = null) =>
             options != null ? _documentStore.OpenSession(options) : _documentStore.OpenSession();
 
+        public IAsyncDocumentSession OpenAsyncSession(SessionOptions options = null) =>
+            options != null ? _documentStore.OpenAsyncSession(options) : _documentStore.OpenAsyncSession();
+
         public DatabaseStatistics GetDatabaseStatistics()
         {
             if (_database == null || !_documentStore.DatabaseExists(_database))
