@@ -1,4 +1,4 @@
-﻿using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Session;
 using Raven.Client.Documents;
 using Raven.TestDriver;
@@ -11,6 +11,14 @@ namespace Hangfire.Raven.Tests
     public class RavenTestesUnitarios : RavenTestDriver
     {
         private Dictionary<string, IDocumentStore> _storesDosBancos;
+
+        static RavenTestesUnitarios()
+        {
+            ConfigureServer(new TestServerOptions
+            {
+                FrameworkVersion = null
+            });
+        }
 
         public RavenTestesUnitarios(Dictionary<string, IDocumentStore> storesDosBancos)
         {

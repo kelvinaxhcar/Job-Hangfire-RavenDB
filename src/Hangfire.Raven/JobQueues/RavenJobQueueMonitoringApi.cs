@@ -1,6 +1,7 @@
 using Hangfire.Annotations;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
+using Hangfire.Raven.Indexes;
 using Hangfire.Raven.Storage;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Linq;
@@ -25,7 +26,7 @@ namespace Hangfire.Raven.JobQueues
         {
             using var documentSession = _storage.Repository.OpenSession();
             return documentSession
-                .Query<JobQueue>()
+                .Query<JobQueue, JobQueue_ByQueueAndFetchedAt>()
                 .Select(x => x.Queue)
                 .Distinct()
                 .ToList();
@@ -35,7 +36,7 @@ namespace Hangfire.Raven.JobQueues
         {
             using var documentSession = _storage.Repository.OpenSession();
             return documentSession
-                .Query<JobQueue>()
+                .Query<JobQueue, JobQueue_ByQueueAndFetchedAt>()
                 .Where(a => a.Queue == queue && a.FetchedAt == new DateTime?())
                 .Skip(pageFrom)
                 .Take(perPage)
@@ -47,7 +48,7 @@ namespace Hangfire.Raven.JobQueues
         {
             using var documentSession = _storage.Repository.OpenSession();
             return documentSession
-                .Query<JobQueue>()
+                .Query<JobQueue, JobQueue_ByQueueAndFetchedAt>()
                 .Where(a => a.Queue == queue && a.FetchedAt != new DateTime?()).Skip(pageFrom)
                 .Take(perPage)
                 .Select(a => a.JobId)
@@ -57,8 +58,8 @@ namespace Hangfire.Raven.JobQueues
         public EnqueuedAndFetchedCount GetEnqueuedAndFetchedCount(string queue)
         {
             using var documentSession = _storage.Repository.OpenSession();
-            var fetchedLazy = documentSession.Query<JobQueue>().Statistics(out var fetchedStats).Where(a => a.FetchedAt != null && a.Queue == queue).Take(0).Lazily();
-            var enqueuedLazy = documentSession.Query<JobQueue>().Statistics(out var enqueuedStats).Where(a => a.FetchedAt == null && a.Queue == queue).Take(0).Lazily();
+            var fetchedLazy = documentSession.Query<JobQueue, JobQueue_ByQueueAndFetchedAt>().Statistics(out var fetchedStats).Where(a => a.FetchedAt != null && a.Queue == queue).Take(0).Lazily();
+            var enqueuedLazy = documentSession.Query<JobQueue, JobQueue_ByQueueAndFetchedAt>().Statistics(out var enqueuedStats).Where(a => a.FetchedAt == null && a.Queue == queue).Take(0).Lazily();
             
             _ = fetchedLazy.Value; // Triggers batch
 

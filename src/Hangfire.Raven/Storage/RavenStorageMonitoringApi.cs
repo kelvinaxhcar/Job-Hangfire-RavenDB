@@ -2,6 +2,7 @@ using Hangfire.Annotations;
 using Hangfire.Common;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
+using Hangfire.Raven.Indexes;
 using Hangfire.Raven.JobQueues;
 using Hangfire.States;
 using Hangfire.Storage;
@@ -48,7 +49,7 @@ namespace Hangfire.Raven.Storage
         private long GetNumberOfJobsByStateName(string stateName)
         {
             using var session = _storage.Repository.OpenSession();
-            return session.Query<RavenJob>()
+            return session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>()
                          .Count(x => x.StateData.Name == stateName);
         }
 
@@ -110,13 +111,13 @@ namespace Hangfire.Raven.Storage
             var recurringJobsSetLazy = session.Advanced.Lazily.Load<RavenSet>(
                 _storage.Repository.GetId(typeof(RavenSet), "recurring-jobs"));
 
-            var succeededLazy = session.Query<RavenJob>().Statistics(out var succeededStats).Where(x => x.StateData.Name == SucceededState.StateName).Take(0).Lazily();
-            var scheduledLazy = session.Query<RavenJob>().Statistics(out var scheduledStats).Where(x => x.StateData.Name == ScheduledState.StateName).Take(0).Lazily();
-            var enqueuedLazy = session.Query<RavenJob>().Statistics(out var enqueuedStats).Where(x => x.StateData.Name == EnqueuedState.StateName).Take(0).Lazily();
-            var failedLazy = session.Query<RavenJob>().Statistics(out var failedStats).Where(x => x.StateData.Name == FailedState.StateName).Take(0).Lazily();
-            var processingLazy = session.Query<RavenJob>().Statistics(out var processingStats).Where(x => x.StateData.Name == ProcessingState.StateName).Take(0).Lazily();
-            var deletedLazy = session.Query<RavenJob>().Statistics(out var deletedStats).Where(x => x.StateData.Name == DeletedState.StateName).Take(0).Lazily();
-            var queueCountLazy = session.Query<JobQueue>().Statistics(out var queueStats).Take(0).Lazily();
+            var succeededLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var succeededStats).Where(x => x.StateData.Name == SucceededState.StateName).Take(0).Lazily();
+            var scheduledLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var scheduledStats).Where(x => x.StateData.Name == ScheduledState.StateName).Take(0).Lazily();
+            var enqueuedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var enqueuedStats).Where(x => x.StateData.Name == EnqueuedState.StateName).Take(0).Lazily();
+            var failedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var failedStats).Where(x => x.StateData.Name == FailedState.StateName).Take(0).Lazily();
+            var processingLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var processingStats).Where(x => x.StateData.Name == ProcessingState.StateName).Take(0).Lazily();
+            var deletedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var deletedStats).Where(x => x.StateData.Name == DeletedState.StateName).Take(0).Lazily();
+            var queueCountLazy = session.Query<JobQueue, JobQueue_ByQueueAndFetchedAt>().Statistics(out var queueStats).Take(0).Lazily();
 
             _ = serverLazy.Value; // Triggers batch execution of all lazy queries
 
@@ -259,7 +260,7 @@ namespace Hangfire.Raven.Storage
         {
             using var session = _storage.Repository.OpenSession();
 
-            var jobs = session.Query<RavenJob>()
+            var jobs = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>()
                             .Customize(x => x.WaitForNonStaleResults())
                             .Where(x => x.StateData.Name == stateName)
                             .OrderByDescending(x => x.CreatedAt)
