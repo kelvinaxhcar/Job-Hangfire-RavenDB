@@ -84,7 +84,8 @@ namespace Hangfire.Raven.Storage
             _repository.ExecuteIndexes(new List<AbstractIndexCreationTask>
             {
                 new JobQueue_ByQueueAndFetchedAt(),
-                new RavenJobs_ByStateAndCreatedAt()
+                new RavenJobs_ByStateAndCreatedAt(),
+                new JobQueue_Stats()
             });
         }
 

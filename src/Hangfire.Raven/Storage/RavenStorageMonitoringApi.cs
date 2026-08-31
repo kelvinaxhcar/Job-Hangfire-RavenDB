@@ -274,23 +274,31 @@ namespace Hangfire.Raven.Storage
 
         public IList<QueueWithTopEnqueuedJobsDto> Queues()
         {
-            using var session = _storage.Repository.OpenSession();
+            return GetOrCreateCached("Monitoring:Queues", string.Empty, () =>
+            {
+                using var session = _storage.Repository.OpenSession();
 
-            var queueGroups = session.Query<JobQueue>()
-                                   .ToList()
-                                   .GroupBy(x => x.Queue)
-                                   .Select(g => new QueueWithTopEnqueuedJobsDto
-                                   {
-                                       Name = g.Key,
-                                       Length = g.Count(x => !x.FetchedAt.HasValue),
-                                       Fetched = g.Count(x => x.FetchedAt.HasValue),
-                                       FirstJobs = GetJobsById<EnqueuedJobDto>(
-                                           g.Take(5).Select(x => x.JobId),
-                                           CreateEnqueuedJobDto)
-                                   })
-                                   .ToList();
+                var queueStatsList = session.Query<JobQueue_Stats.Result, JobQueue_Stats>()
+                                            .ToList();
 
-            return queueGroups;
+                var result = new List<QueueWithTopEnqueuedJobsDto>(queueStatsList.Count);
+
+                foreach (var queueStat in queueStatsList)
+                {
+                    var topJobIds = GetQueueApi(queueStat.Queue).GetEnqueuedJobIds(queueStat.Queue, 0, 5);
+                    var firstJobs = GetJobsById<EnqueuedJobDto>(topJobIds, CreateEnqueuedJobDto);
+
+                    result.Add(new QueueWithTopEnqueuedJobsDto
+                    {
+                        Name = queueStat.Queue,
+                        Length = queueStat.Length,
+                        Fetched = queueStat.Fetched,
+                        FirstJobs = firstJobs
+                    });
+                }
+
+                return (IList<QueueWithTopEnqueuedJobsDto>)result;
+            });
         }
 
         public IList<ServerDto> Servers()

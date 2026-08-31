@@ -30,6 +30,17 @@ namespace Hangfire.Raven.Tests
         }
 
         [Fact]
+        public void JobQueue_Stats_HasCorrectNameMapAndReduce()
+        {
+            var index = new JobQueue_Stats();
+            var definition = index.CreateIndexDefinition();
+
+            Assert.Equal("JobQueue/Stats", index.IndexName);
+            Assert.NotEmpty(definition.Maps);
+            Assert.NotNull(definition.Reduce);
+        }
+
+        [Fact]
         public void RavenStorage_Ctor_ExecutesStaticIndexesOnRepository()
         {
             var repositoryMock = new Mock<IRepository>();
@@ -42,9 +53,10 @@ namespace Hangfire.Raven.Tests
 
             repositoryMock.Verify(r => r.ExecuteIndexes(It.IsAny<List<AbstractIndexCreationTask>>()), Times.Once);
             Assert.NotNull(executedIndexes);
-            Assert.Equal(2, executedIndexes.Count);
+            Assert.Equal(3, executedIndexes.Count);
             Assert.Contains(executedIndexes, i => i is JobQueue_ByQueueAndFetchedAt);
             Assert.Contains(executedIndexes, i => i is RavenJobs_ByStateAndCreatedAt);
+            Assert.Contains(executedIndexes, i => i is JobQueue_Stats);
         }
     }
 }
