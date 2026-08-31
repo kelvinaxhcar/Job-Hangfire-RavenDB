@@ -20,6 +20,7 @@ namespace Hangfire.Raven
 {
     public class RavenConnection : JobStorageConnection, IJobStorageBatchConnection, IStorageConnectionAsync
     {
+        private static readonly SessionOptions NoTrackingOptions = new SessionOptions { NoTracking = true };
         private readonly RavenStorage _storage;
 
         public RavenConnection(RavenStorage storage)
@@ -79,7 +80,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             return GetOrCreateCached("RavenJobData", key, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenJob), key);
                 var ravenJob = documentSession.Load<RavenJob>(id);
                 if (ravenJob == null)
@@ -109,7 +110,7 @@ namespace Hangfire.Raven
             jobId.ThrowIfNull(nameof(jobId));
             return GetOrCreateCached("RavenJobState", jobId, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
                 return documentSession.Load<RavenJob>(id)?.StateData;
             });
@@ -155,7 +156,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             return GetOrCreateCached("SetItems", key, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenSet), key);
                 var ravenSet = documentSession.Load<RavenSet>(id);
                 return ravenSet == null ? new HashSet<string>() : new HashSet<string>(ravenSet.Scores.Keys);
@@ -170,7 +171,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             if (toScore < fromScore)
                 throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.");
-            using var documentSession = _storage.Repository.OpenSession();
+            using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
             string id = _storage.Repository.GetId(typeof(RavenSet), key);
             var ravenSet = documentSession.Load<RavenSet>(id);
             return ravenSet?.Scores.Where(a => a.Value >= fromScore && a.Value <= toScore)
@@ -208,7 +209,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             return GetOrCreateCached("HashEntries", key, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 return documentSession.Load<RavenHash>(_storage.Repository.GetId(typeof(RavenHash), key))?.Fields;
             });
         }
@@ -284,7 +285,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             return GetOrCreateCached("SetCount", key, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenSet), key);
                 var ravenSet = documentSession.Load<RavenSet>(id);
                 return ravenSet == null ? 0L : (long)ravenSet.Scores.Count;
@@ -294,7 +295,7 @@ namespace Hangfire.Raven
         public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
         {
             key.ThrowIfNull(nameof(key));
-            using var documentSession = _storage.Repository.OpenSession();
+            using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
             var id = _storage.Repository.GetId(typeof(RavenSet), key);
             var ravenSet = documentSession.Load<RavenSet>(id);
 
@@ -310,7 +311,7 @@ namespace Hangfire.Raven
         public override TimeSpan GetSetTtl(string key)
         {
             key.ThrowIfNull(nameof(key));
-            using var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
             var id = _storage.Repository.GetId(typeof(RavenSet), key);
             var ravenSet = session.Load<RavenSet>(id);
             if (ravenSet == null)
@@ -324,7 +325,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             return GetOrCreateCached("Counter", key, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(Counter), key);
                 var counter = documentSession.Load<Counter>(id);
                 return counter == null ? 0L : (long)counter.Value;
@@ -336,7 +337,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             return GetOrCreateCached("HashCount", key, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var ravenHash = documentSession.Load<RavenHash>(_storage.Repository.GetId(typeof(RavenHash), key));
                 return ravenHash == null ? 0L : (long)ravenHash.Fields.Count;
             });
@@ -345,7 +346,7 @@ namespace Hangfire.Raven
         public override TimeSpan GetHashTtl(string key)
         {
             key.ThrowIfNull(nameof(key));
-            using var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
             var id = _storage.Repository.GetId(typeof(RavenHash), key);
             var ravenHash = session.Load<RavenHash>(id);
             if (ravenHash == null)
@@ -360,7 +361,7 @@ namespace Hangfire.Raven
             name.ThrowIfNull(nameof(name));
             return GetOrCreateCached("HashValue", $"{key}:{name}", () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var ravenHash = documentSession.Load<RavenHash>(_storage.Repository.GetId(typeof(RavenHash), key));
                 return ravenHash == null || !ravenHash.Fields.TryGetValue(name, out string str) ? null : str;
             });
@@ -371,7 +372,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             return GetOrCreateCached("ListCount", key, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenList), key);
                 var ravenList = documentSession.Load<RavenList>(id);
                 return ravenList == null ? 0L : ravenList.Values.Count;
@@ -381,7 +382,7 @@ namespace Hangfire.Raven
         public override TimeSpan GetListTtl(string key)
         {
             key.ThrowIfNull(nameof(key));
-            using var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
             var id = _storage.Repository.GetId(typeof(RavenList), key);
             var ravenList = session.Load<RavenList>(id);
             if (ravenList == null)
@@ -393,7 +394,7 @@ namespace Hangfire.Raven
         public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
         {
             key.ThrowIfNull(nameof(key));
-            using var documentSession = _storage.Repository.OpenSession();
+            using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
             var id = _storage.Repository.GetId(typeof(RavenList), key);
             var ravenList = documentSession.Load<RavenList>(id);
             return ravenList == null ? new List<string>() : ravenList.Values.Skip(startingFrom).Take(endingAt - startingFrom + 1).ToList();
@@ -404,7 +405,7 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             return GetOrCreateCached("ListItems", key, () =>
             {
-                using var documentSession = _storage.Repository.OpenSession();
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenList), key);
                 var ravenList = documentSession.Load<RavenList>(id);
                 return ravenList == null ? new List<string>() : ravenList.Values;
@@ -514,7 +515,7 @@ namespace Hangfire.Raven
 
             return await GetOrCreateCachedAsync("RavenJobData", key, async () =>
             {
-                using var documentSession = _storage.Repository.OpenAsyncSession();
+                using var documentSession = _storage.Repository.OpenAsyncSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenJob), key);
                 var ravenJob = await documentSession.LoadAsync<RavenJob>(id, cancellationToken);
                 if (ravenJob == null)
@@ -548,7 +549,7 @@ namespace Hangfire.Raven
 
             return await GetOrCreateCachedAsync("RavenJobState", jobId, async () =>
             {
-                using var documentSession = _storage.Repository.OpenAsyncSession();
+                using var documentSession = _storage.Repository.OpenAsyncSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
                 var ravenJob = await documentSession.LoadAsync<RavenJob>(id, cancellationToken);
                 return ravenJob?.StateData;
