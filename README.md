@@ -14,6 +14,7 @@
 ## Features
 
 - ⚡ **High-Performance Batched Operations**: Uses lazy batch loading and statistics queries to eliminate memory bottlenecks on dashboard metrics and multi-queue lookups.
+- 🌐 **Cluster High Availability & Connection Pooling**: Multi-node RavenDB cluster support (`Urls`) with automatic client-side failover, request balancing, and connection pooling.
 - 🔒 **Cluster-Wide Compare Exchange Distributed Lock**: Atomic distributed locks backed by RavenDB Compare Exchange with heartbeat renewal.
 - 📦 **Atomic Patches**: Utilizes RavenDB deferred JavaScript patches for high-throughput counters, set operations, and queue mutations.
 - ⏱️ **Automatic Expiration & TTL**: Native document expiration support for completed/expired jobs, stats, and locks.
@@ -61,7 +62,7 @@ Install-Package Job.Hangfire.Raven6x
 
 ## Configuration & Usage
 
-### 1. ASP.NET Core Integration
+### 1. ASP.NET Core Integration (Single Node or Cluster)
 
 In your `Program.cs` or `Startup.cs`:
 
@@ -73,17 +74,20 @@ using Hangfire.Raven.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Hangfire with RavenDB Storage
+// Configure Hangfire with RavenDB Storage (Single Node or Multi-Node Cluster)
 builder.Services.AddHangfire(config =>
 {
     config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
           .UseSimpleAssemblyNameTypeSerializer()
           .UseRecommendedSerializerSettings()
-          .UseRavenStorage("http://localhost:8080", "HangfireDB", new RavenStorageOptions
+          // For Multi-Node Cluster with native failover and connection pooling:
+          .UseRavenStorage(new[] { "http://node1:8080", "http://node2:8080", "http://node3:8080" }, "HangfireDB", new RavenStorageOptions
           {
               InvisibilityTimeout = TimeSpan.FromMinutes(30),
               QueuePollInterval = TimeSpan.FromSeconds(2),
-              DistributedLockLifetime = TimeSpan.FromMinutes(1)
+              DistributedLockLifetime = TimeSpan.FromMinutes(1),
+              EnableCache = true,
+              CacheSlidingExpiration = TimeSpan.FromSeconds(3)
           })
           .UseRavenDashboard(); // Activates RavenDB Metrics and OpenUI5 / SAP Fiori Dashboard
 });
@@ -106,14 +110,30 @@ app.UseHangfireDashboard("/hangfire");
 app.Run();
 ```
 
-### 2. Standalone / Console Application
+### 2. Multi-Node Cluster Setup with Certificate Authentication
+
+For production environments using secure RavenDB clusters (X.509 Certificate):
+
+```csharp
+var clusterUrls = new[] { "https://a.ravendb.mycompany.com", "https://b.ravendb.mycompany.com", "https://c.ravendb.mycompany.com" };
+var clientCert = new X509Certificate2("cluster_client_cert.pfx", "cert_password");
+
+GlobalConfiguration.Configuration
+    .UseRavenStorage(clusterUrls, "HangfireDB", clientCert, new RavenStorageOptions
+    {
+        EnableCache = true,
+        CacheSlidingExpiration = TimeSpan.FromSeconds(3)
+    });
+```
+
+### 3. Standalone / Console Application
 
 ```csharp
 using Hangfire;
 using Hangfire.Raven;
 
 GlobalConfiguration.Configuration
-    .UseRavenStorage("http://localhost:8080", "HangfireDB");
+    .UseRavenStorage(new[] { "http://node1:8080", "http://node2:8080" }, "HangfireDB");
 
 using (var server = new BackgroundJobServer())
 {
@@ -184,6 +204,15 @@ var options = new RavenStorageOptions
 
     // Lifetime of distributed locks before automatic expiry/cleanup
     DistributedLockLifetime = TimeSpan.FromMinutes(1),
+
+    // Enable in-memory caching with sliding expiration for high-frequency reads
+    EnableCache = true,
+    CacheSlidingExpiration = TimeSpan.FromSeconds(3),
+
+    // Enable RavenDB document revisions for job audit trailing
+    EnableJobRevisions = true,
+    PurgeJobRevisionsOnDelete = false,
+    MinimumJobRevisionsToKeep = 50,
 
     // Unique client identifier for lock tracking
     ClientId = Guid.NewGuid().ToString()
