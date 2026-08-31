@@ -1,4 +1,5 @@
 using Hangfire.Common;
+using Hangfire.Logging;
 using Hangfire.Raven.DistributedLocks;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Extensions;
@@ -20,6 +21,7 @@ namespace Hangfire.Raven
 {
     public class RavenConnection : JobStorageConnection, IJobStorageBatchConnection, IStorageConnectionAsync
     {
+        private static readonly ILog Logger = LogProvider.For<RavenConnection>();
         private static readonly SessionOptions NoTrackingOptions = new SessionOptions { NoTracking = true };
         private readonly RavenStorage _storage;
 
@@ -257,8 +259,8 @@ namespace Hangfire.Raven
             var entity = documentSession.Load<RavenServer>(id);
             if (entity == null)
             {
-                entity = new RavenServer() { Id = id };
-                documentSession.Store(entity);
+                Logger.WarnFormat("Server '{0}' was not found to update heartbeat.", serverId);
+                return;
             }
             entity.LastHeartbeat = DateTime.UtcNow;
             documentSession.SaveChanges();
