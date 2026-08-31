@@ -150,7 +150,7 @@ namespace Hangfire.Raven.Storage
             });
         }
 
-        public RavenStorageMetricsDto GetRavenMetrics()
+        public virtual RavenStorageMetricsDto GetRavenMetrics()
         {
             return GetOrCreateCached("Monitoring:RavenMetrics", string.Empty, () =>
             {
