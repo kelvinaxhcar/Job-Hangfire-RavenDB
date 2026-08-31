@@ -1,4 +1,4 @@
-﻿using Hangfire.Raven.Storage;
+using Hangfire.Raven.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -85,6 +85,40 @@ namespace Hangfire.Raven.Tests
                 DistributedLockLifetime = TimeSpan.FromSeconds(1)
             };
             Assert.Equal(TimeSpan.FromSeconds(1), options.DistributedLockLifetime);
+        }
+
+        [Fact]
+        public void Ctor_SetsDefaultCacheOptions()
+        {
+            var options = new RavenStorageOptions();
+
+            Assert.True(options.EnableCache);
+            Assert.Equal(TimeSpan.FromSeconds(3), options.CacheSlidingExpiration);
+            Assert.Null(options.MemoryCache);
+        }
+
+        [Fact]
+        public void Set_CacheSlidingExpiration_ShouldThrowAnException_WhenGivenValueIsEqualToZero()
+        {
+            var options = new RavenStorageOptions();
+            Assert.Throws<ArgumentException>(() => options.CacheSlidingExpiration = TimeSpan.Zero);
+        }
+
+        [Fact]
+        public void Set_CacheSlidingExpiration_ShouldThrowAnException_WhenGivenValueIsNegative()
+        {
+            var options = new RavenStorageOptions();
+            Assert.Throws<ArgumentException>(() => options.CacheSlidingExpiration = TimeSpan.FromSeconds(-1));
+        }
+
+        [Fact]
+        public void Set_CacheSlidingExpiration_SetsTheValue()
+        {
+            var options = new RavenStorageOptions
+            {
+                CacheSlidingExpiration = TimeSpan.FromSeconds(5)
+            };
+            Assert.Equal(TimeSpan.FromSeconds(5), options.CacheSlidingExpiration);
         }
     }
 }

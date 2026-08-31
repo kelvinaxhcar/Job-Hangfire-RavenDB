@@ -8,6 +8,7 @@ using Hangfire.Raven.JobQueues;
 using Hangfire.States;
 using Hangfire.Storage;
 using Hangfire.Storage.Monitoring;
+using Microsoft.Extensions.Caching.Memory;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Linq;
 using Raven.Client.Documents.Session;
@@ -49,9 +50,12 @@ namespace Hangfire.Raven.Storage
 
         private long GetNumberOfJobsByStateName(string stateName)
         {
-            using var session = _storage.Repository.OpenSession();
-            return session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>()
-                         .Count(x => x.StateData.Name == stateName);
+            return GetOrCreateCached("Monitoring:StateCount", stateName, () =>
+            {
+                using var session = _storage.Repository.OpenSession();
+                return session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>()
+                             .Count(x => x.StateData.Name == stateName);
+            });
         }
 
         public IDictionary<DateTime, long> FailedByDatesCount() => GetTimelineStats("failed");
@@ -61,24 +65,30 @@ namespace Hangfire.Raven.Storage
 
         private Dictionary<DateTime, long> GetHourlyTimelineStats(string type)
         {
-            var dates = Enumerable.Range(0, 24)
-                                .Select(i => DateTime.UtcNow.AddHours(-i))
-                                .ToList();
+            return GetOrCreateCached($"Monitoring:HourlyTimeline:{type}", DateTime.UtcNow.ToString("yyyy-MM-dd-HH"), () =>
+            {
+                var dates = Enumerable.Range(0, 24)
+                                    .Select(i => DateTime.UtcNow.AddHours(-i))
+                                    .ToList();
 
-            return GetTimelineStats(
-                dates,
-                x => $"stats:{type}:{x:yyyy-MM-dd-HH}");
+                return GetTimelineStats(
+                    dates,
+                    x => $"stats:{type}:{x:yyyy-MM-dd-HH}");
+            });
         }
 
         private Dictionary<DateTime, long> GetTimelineStats(string type)
         {
-            var dates = Enumerable.Range(0, 7)
-                                .Select(i => DateTime.UtcNow.Date.AddDays(-i))
-                                .ToList();
+            return GetOrCreateCached($"Monitoring:Timeline:{type}", DateTime.UtcNow.ToString("yyyy-MM-dd"), () =>
+            {
+                var dates = Enumerable.Range(0, 7)
+                                    .Select(i => DateTime.UtcNow.Date.AddDays(-i))
+                                    .ToList();
 
-            return GetTimelineStats(
-                dates,
-                x => $"stats:{type}:{x:yyyy-MM-dd}");
+                return GetTimelineStats(
+                    dates,
+                    x => $"stats:{type}:{x:yyyy-MM-dd}");
+            });
         }
 
         private Dictionary<DateTime, long> GetTimelineStats(
@@ -102,79 +112,85 @@ namespace Hangfire.Raven.Storage
 
         public StatisticsDto GetStatistics()
         {
-            using var session = _storage.Repository.OpenSession();
-
-            var serverLazy = session.Query<RavenServer>()
-                   .Statistics(out var serverStats)
-                   .Take(0)
-                   .Lazily();
-
-            var recurringJobsSetLazy = session.Advanced.Lazily.Load<RavenSet>(
-                _storage.Repository.GetId(typeof(RavenSet), "recurring-jobs"));
-
-            var succeededLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var succeededStats).Where(x => x.StateData.Name == SucceededState.StateName).Take(0).Lazily();
-            var scheduledLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var scheduledStats).Where(x => x.StateData.Name == ScheduledState.StateName).Take(0).Lazily();
-            var enqueuedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var enqueuedStats).Where(x => x.StateData.Name == EnqueuedState.StateName).Take(0).Lazily();
-            var failedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var failedStats).Where(x => x.StateData.Name == FailedState.StateName).Take(0).Lazily();
-            var processingLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var processingStats).Where(x => x.StateData.Name == ProcessingState.StateName).Take(0).Lazily();
-            var deletedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var deletedStats).Where(x => x.StateData.Name == DeletedState.StateName).Take(0).Lazily();
-            var queueCountLazy = session.Query<JobQueue, JobQueue_ByQueueAndFetchedAt>().Statistics(out var queueStats).Take(0).Lazily();
-
-            _ = serverLazy.Value; // Triggers batch execution of all lazy queries
-
-            return new StatisticsDto
+            return GetOrCreateCached("Monitoring:Statistics", string.Empty, () =>
             {
-                Servers = serverStats.TotalResults,
-                Queues = queueStats.TotalResults,
-                Recurring = recurringJobsSetLazy.Value?.Scores?.Count ?? 0,
-                Succeeded = succeededStats.TotalResults,
-                Scheduled = scheduledStats.TotalResults,
-                Enqueued = enqueuedStats.TotalResults,
-                Failed = failedStats.TotalResults,
-                Processing = processingStats.TotalResults,
-                Deleted = deletedStats.TotalResults
-            };
+                using var session = _storage.Repository.OpenSession();
+
+                var serverLazy = session.Query<RavenServer>()
+                       .Statistics(out var serverStats)
+                       .Take(0)
+                       .Lazily();
+
+                var recurringJobsSetLazy = session.Advanced.Lazily.Load<RavenSet>(
+                    _storage.Repository.GetId(typeof(RavenSet), "recurring-jobs"));
+
+                var succeededLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var succeededStats).Where(x => x.StateData.Name == SucceededState.StateName).Take(0).Lazily();
+                var scheduledLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var scheduledStats).Where(x => x.StateData.Name == ScheduledState.StateName).Take(0).Lazily();
+                var enqueuedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var enqueuedStats).Where(x => x.StateData.Name == EnqueuedState.StateName).Take(0).Lazily();
+                var failedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var failedStats).Where(x => x.StateData.Name == FailedState.StateName).Take(0).Lazily();
+                var processingLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var processingStats).Where(x => x.StateData.Name == ProcessingState.StateName).Take(0).Lazily();
+                var deletedLazy = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>().Statistics(out var deletedStats).Where(x => x.StateData.Name == DeletedState.StateName).Take(0).Lazily();
+                var queueCountLazy = session.Query<JobQueue, JobQueue_ByQueueAndFetchedAt>().Statistics(out var queueStats).Take(0).Lazily();
+
+                _ = serverLazy.Value; // Triggers batch execution of all lazy queries
+
+                return new StatisticsDto
+                {
+                    Servers = serverStats.TotalResults,
+                    Queues = queueStats.TotalResults,
+                    Recurring = recurringJobsSetLazy.Value?.Scores?.Count ?? 0,
+                    Succeeded = succeededStats.TotalResults,
+                    Scheduled = scheduledStats.TotalResults,
+                    Enqueued = enqueuedStats.TotalResults,
+                    Failed = failedStats.TotalResults,
+                    Processing = processingStats.TotalResults,
+                    Deleted = deletedStats.TotalResults
+                };
+            });
         }
 
         public RavenStorageMetricsDto GetRavenMetrics()
         {
-            var stats = _storage.Repository.GetDatabaseStatistics();
-            if (stats == null)
+            return GetOrCreateCached("Monitoring:RavenMetrics", string.Empty, () =>
             {
-                return new RavenStorageMetricsDto
+                var stats = _storage.Repository.GetDatabaseStatistics();
+                if (stats == null)
                 {
-                    DatabaseName = _storage.Repository.DatabaseName ?? "Unknown"
-                };
-            }
-
-            var staleCount = stats.StaleIndexes?.Length ?? (stats.Indexes?.Count(i => i.IsStale) ?? 0);
-
-            var dto = new RavenStorageMetricsDto
-            {
-                DatabaseName = _storage.Repository.DatabaseName,
-                DatabaseId = stats.DatabaseId,
-                DocumentsCount = stats.CountOfDocuments,
-                IndexesCount = stats.CountOfIndexes,
-                StaleIndexesCount = staleCount,
-                StaleIndexes = stats.StaleIndexes,
-                SizeOnDisk = stats.SizeOnDisk?.HumaneSize ?? "N/A"
-            };
-
-            if (stats.Indexes != null)
-            {
-                foreach (var idx in stats.Indexes)
-                {
-                    dto.Indexes.Add(new RavenIndexMetricsDto
+                    return new RavenStorageMetricsDto
                     {
-                        Name = idx.Name,
-                        IsStale = idx.IsStale,
-                        State = idx.State.ToString(),
-                        Type = idx.Type.ToString()
-                    });
+                        DatabaseName = _storage.Repository.DatabaseName ?? "Unknown"
+                    };
                 }
-            }
 
-            return dto;
+                var staleCount = stats.StaleIndexes?.Length ?? (stats.Indexes?.Count(i => i.IsStale) ?? 0);
+
+                var dto = new RavenStorageMetricsDto
+                {
+                    DatabaseName = _storage.Repository.DatabaseName,
+                    DatabaseId = stats.DatabaseId,
+                    DocumentsCount = stats.CountOfDocuments,
+                    IndexesCount = stats.CountOfIndexes,
+                    StaleIndexesCount = staleCount,
+                    StaleIndexes = stats.StaleIndexes,
+                    SizeOnDisk = stats.SizeOnDisk?.HumaneSize ?? "N/A"
+                };
+
+                if (stats.Indexes != null)
+                {
+                    foreach (var idx in stats.Indexes)
+                    {
+                        dto.Indexes.Add(new RavenIndexMetricsDto
+                        {
+                            Name = idx.Name,
+                            IsStale = idx.IsStale,
+                            State = idx.State.ToString(),
+                            Type = idx.Type.ToString()
+                        });
+                    }
+                }
+
+                return dto;
+            });
         }
 
         public JobList<DeletedJobDto> DeletedJobs(int from, int count)
@@ -445,6 +461,30 @@ namespace Hangfire.Raven.Storage
             {
                 return new List<RavenJobRevisionDto>();
             }
+        }
+
+        private string GetCacheKey(string type, string key) => $"Hangfire:Raven:{_storage.Options.ClientId}:{type}:{key}";
+
+        private T GetOrCreateCached<T>(string type, string key, Func<T> factory)
+        {
+            if (!_storage.Options.EnableCache || _storage.Cache == null)
+            {
+                return factory();
+            }
+
+            var cacheKey = GetCacheKey(type, key);
+            if (_storage.Cache.TryGetValue(cacheKey, out T cachedValue))
+            {
+                return cachedValue;
+            }
+
+            var value = factory();
+            var options = new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = _storage.Options.CacheSlidingExpiration
+            };
+            _storage.Cache.Set(cacheKey, value, options);
+            return value;
         }
     }
 }
