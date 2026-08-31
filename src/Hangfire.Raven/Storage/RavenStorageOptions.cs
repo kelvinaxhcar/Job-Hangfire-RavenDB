@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Hangfire.Raven.Storage
 {
@@ -8,6 +9,7 @@ namespace Hangfire.Raven.Storage
         private readonly string _clientId = null;
         private TimeSpan _queuePollInterval;
         private TimeSpan _distributedLockLifetime;
+        private TimeSpan _cacheSlidingExpiration;
 
         public RavenStorageOptions()
         {
@@ -17,6 +19,7 @@ namespace Hangfire.Raven.Storage
             CountersAggregateInterval = TimeSpan.FromMinutes(5.0);
             TransactionTimeout = TimeSpan.FromMinutes(1.0);
             DistributedLockLifetime = TimeSpan.FromSeconds(30.0);
+            CacheSlidingExpiration = TimeSpan.FromSeconds(3.0);
             _clientId = Guid.NewGuid().ToString().Replace("-", string.Empty);
         }
 
@@ -63,6 +66,22 @@ namespace Hangfire.Raven.Storage
         public bool PurgeJobRevisionsOnDelete { get; set; } = false;
 
         public bool EnableChangesApiQueueEvents { get; set; } = true;
+
+        public bool EnableCache { get; set; } = true;
+
+        public TimeSpan CacheSlidingExpiration
+        {
+            get => _cacheSlidingExpiration;
+            set
+            {
+                var message = string.Format("The CacheSlidingExpiration property value should be positive. Given: {0}.", value);
+                if (value == TimeSpan.Zero)
+                    throw new ArgumentException(message, nameof(value));
+                _cacheSlidingExpiration = !(value != value.Duration()) ? value : throw new ArgumentException(message, nameof(value));
+            }
+        }
+
+        public IMemoryCache MemoryCache { get; set; }
 
         public string ClientId => _clientId;
     }
