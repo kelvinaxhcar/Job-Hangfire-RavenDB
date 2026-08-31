@@ -21,13 +21,20 @@ namespace Hangfire.Raven
 
         public Repository(RepositoryConfig config)
         {
-            DocumentStore documentStore = new DocumentStore();
-            documentStore.Urls = new string[1]
+            config.ThrowIfNull(nameof(config));
+            var urls = config.Urls != null && config.Urls.Length > 0
+                ? config.Urls
+                : (!string.IsNullOrEmpty(config.ConnectionUrl) ? new[] { config.ConnectionUrl } : Array.Empty<string>());
+
+            if (urls.Length == 0)
+                throw new ArgumentException("At least one RavenDB URL must be configured in RepositoryConfig.", nameof(config));
+
+            DocumentStore documentStore = new DocumentStore
             {
-        config.ConnectionUrl
+                Urls = urls,
+                Database = config.Database,
+                Certificate = config.Certificate
             };
-            documentStore.Database = config.Database;
-            documentStore.Certificate = config.Certificate;
             _documentStore = documentStore;
             _documentStore.Initialize();
             _database = _documentStore.Database;
