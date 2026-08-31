@@ -3,6 +3,9 @@
 
 .localhistory
 .nupkg
+*.nupkg
+*.snupkg
+artifacts/
 
 # User-specific files
 *.suo
