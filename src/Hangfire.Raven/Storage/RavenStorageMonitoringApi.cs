@@ -245,7 +245,7 @@ namespace Hangfire.Raven.Storage
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
 
-            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
+            using var session = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
             var job = session.Load<RavenJob>(id);
 

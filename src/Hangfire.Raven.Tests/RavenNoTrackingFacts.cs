@@ -116,13 +116,13 @@ namespace Hangfire.Raven.Tests
         }
 
         [Fact]
-        public void JobDetails_InMonitoringApi_UsesSessionWithNoTracking()
+        public void JobDetails_InMonitoringApi_UsesSessionWithTracking_ToRetrieveMetadataExpiry()
         {
             var monitoringApi = new RavenStorageMonitoringApi(_storage);
 
             monitoringApi.JobDetails("123");
 
-            _repositoryMock.Verify(r => r.OpenSession(It.Is<SessionOptions>(o => o != null && o.NoTracking)), Times.Once);
+            _repositoryMock.Verify(r => r.OpenSession(It.Is<SessionOptions>(o => o == null || !o.NoTracking)), Times.Once);
         }
 
         [Fact]

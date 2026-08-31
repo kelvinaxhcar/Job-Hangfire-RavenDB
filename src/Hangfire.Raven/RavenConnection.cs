@@ -313,7 +313,7 @@ namespace Hangfire.Raven
         public override TimeSpan GetSetTtl(string key)
         {
             key.ThrowIfNull(nameof(key));
-            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
+            using var session = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenSet), key);
             var ravenSet = session.Load<RavenSet>(id);
             if (ravenSet == null)
@@ -348,7 +348,7 @@ namespace Hangfire.Raven
         public override TimeSpan GetHashTtl(string key)
         {
             key.ThrowIfNull(nameof(key));
-            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
+            using var session = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenHash), key);
             var ravenHash = session.Load<RavenHash>(id);
             if (ravenHash == null)
@@ -384,7 +384,7 @@ namespace Hangfire.Raven
         public override TimeSpan GetListTtl(string key)
         {
             key.ThrowIfNull(nameof(key));
-            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
+            using var session = _storage.Repository.OpenSession();
             var id = _storage.Repository.GetId(typeof(RavenList), key);
             var ravenList = session.Load<RavenList>(id);
             if (ravenList == null)
