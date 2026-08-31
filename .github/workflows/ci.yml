@@ -30,7 +30,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            7.0.x
             8.0.x
             9.0.x
 
@@ -50,13 +49,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nuget-packages
-          path: ./artifacts/*.nupkg
+          path: ./artifacts/*
           retention-days: 14
 
   publish-nuget:
     name: Publish to NuGet.org
     needs: build-and-test
     runs-on: ubuntu-latest
+    environment: nuget-release
     permissions:
       id-token: write
       contents: read
