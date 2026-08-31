@@ -1,3 +1,4 @@
+using System.Net;
 using Hangfire.Dashboard;
 using Hangfire.Dashboard.Pages;
 using Hangfire.Raven.Storage;
@@ -6,6 +7,8 @@ namespace Hangfire.Raven.Dashboard
 {
     public class RavenDashboardPage : RazorPage
     {
+        private static string HtmlEncode(string value) => WebUtility.HtmlEncode(value ?? string.Empty);
+
         public override void Execute()
         {
             Layout = new LayoutPage("RavenDB");
@@ -34,8 +37,8 @@ namespace Hangfire.Raven.Dashboard
             WriteLiteral("<div class=\"panel panel-default\">\r\n");
             WriteLiteral("<div class=\"panel-heading\"><strong>Database</strong></div>\r\n");
             WriteLiteral("<div class=\"panel-body\">\r\n");
-            WriteLiteral($"<h4>{metrics.DatabaseName ?? "N/A"}</h4>\r\n");
-            WriteLiteral($"<p class=\"text-muted\" style=\"margin-bottom:0;\"><small>ID: {metrics.DatabaseId ?? "N/A"}</small></p>\r\n");
+            WriteLiteral($"<h4>{HtmlEncode(metrics.DatabaseName ?? "N/A")}</h4>\r\n");
+            WriteLiteral($"<p class=\"text-muted\" style=\"margin-bottom:0;\"><small>ID: {HtmlEncode(metrics.DatabaseId ?? "N/A")}</small></p>\r\n");
             WriteLiteral("</div></div></div>\r\n");
 
             // Documents Card
@@ -51,7 +54,7 @@ namespace Hangfire.Raven.Dashboard
             WriteLiteral("<div class=\"panel panel-default\">\r\n");
             WriteLiteral("<div class=\"panel-heading\"><strong>Size on Disk</strong></div>\r\n");
             WriteLiteral("<div class=\"panel-body\">\r\n");
-            WriteLiteral($"<h2 class=\"text-success\" style=\"margin:0;\">{metrics.SizeOnDisk ?? "N/A"}</h2>\r\n");
+            WriteLiteral($"<h2 class=\"text-success\" style=\"margin:0;\">{HtmlEncode(metrics.SizeOnDisk ?? "N/A")}</h2>\r\n");
             WriteLiteral("</div></div></div>\r\n");
 
             WriteLiteral("</div>\r\n");
@@ -80,9 +83,9 @@ namespace Hangfire.Raven.Dashboard
                 foreach (var index in metrics.Indexes)
                 {
                     WriteLiteral("<tr>\r\n");
-                    WriteLiteral($"<td><strong>{index.Name}</strong></td>\r\n");
-                    WriteLiteral($"<td>{index.Type}</td>\r\n");
-                    WriteLiteral($"<td>{index.State}</td>\r\n");
+                    WriteLiteral($"<td><strong>{HtmlEncode(index.Name)}</strong></td>\r\n");
+                    WriteLiteral($"<td>{HtmlEncode(index.Type)}</td>\r\n");
+                    WriteLiteral($"<td>{HtmlEncode(index.State)}</td>\r\n");
                     if (index.IsStale)
                     {
                         WriteLiteral("<td><span class=\"label label-warning\">Stale</span></td>\r\n");
