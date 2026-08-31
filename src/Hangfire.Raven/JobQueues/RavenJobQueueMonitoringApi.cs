@@ -14,6 +14,7 @@ namespace Hangfire.Raven.JobQueues
 {
     public class RavenJobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
     {
+        private static readonly SessionOptions NoTrackingOptions = new SessionOptions { NoTracking = true };
         private RavenStorage _storage;
 
         public RavenJobQueueMonitoringApi([NotNull] RavenStorage storage)
@@ -24,7 +25,7 @@ namespace Hangfire.Raven.JobQueues
 
         public IEnumerable<string> GetQueues()
         {
-            using var documentSession = _storage.Repository.OpenSession();
+            using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
             return documentSession
                 .Query<JobQueue, JobQueue_ByQueueAndFetchedAt>()
                 .Select(x => x.Queue)
@@ -34,7 +35,7 @@ namespace Hangfire.Raven.JobQueues
 
         public IEnumerable<string> GetEnqueuedJobIds(string queue, int pageFrom, int perPage)
         {
-            using var documentSession = _storage.Repository.OpenSession();
+            using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
             return documentSession
                 .Query<JobQueue, JobQueue_ByQueueAndFetchedAt>()
                 .Where(a => a.Queue == queue && a.FetchedAt == new DateTime?())
@@ -46,7 +47,7 @@ namespace Hangfire.Raven.JobQueues
 
         public IEnumerable<string> GetFetchedJobIds(string queue, int pageFrom, int perPage)
         {
-            using var documentSession = _storage.Repository.OpenSession();
+            using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
             return documentSession
                 .Query<JobQueue, JobQueue_ByQueueAndFetchedAt>()
                 .Where(a => a.Queue == queue && a.FetchedAt != new DateTime?()).Skip(pageFrom)
@@ -57,7 +58,7 @@ namespace Hangfire.Raven.JobQueues
 
         public EnqueuedAndFetchedCount GetEnqueuedAndFetchedCount(string queue)
         {
-            using var documentSession = _storage.Repository.OpenSession();
+            using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
             var fetchedLazy = documentSession.Query<JobQueue, JobQueue_ByQueueAndFetchedAt>().Statistics(out var fetchedStats).Where(a => a.FetchedAt != null && a.Queue == queue).Take(0).Lazily();
             var enqueuedLazy = documentSession.Query<JobQueue, JobQueue_ByQueueAndFetchedAt>().Statistics(out var enqueuedStats).Where(a => a.FetchedAt == null && a.Queue == queue).Take(0).Lazily();
             

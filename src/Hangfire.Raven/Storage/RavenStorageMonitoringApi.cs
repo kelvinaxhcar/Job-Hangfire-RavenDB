@@ -20,6 +20,7 @@ namespace Hangfire.Raven.Storage
 {
     public class RavenStorageMonitoringApi : IMonitoringApi
     {
+        private static readonly SessionOptions NoTrackingOptions = new SessionOptions { NoTracking = true };
         private readonly RavenStorage _storage;
         private const int DefaultBatchSize = 1000;
 
@@ -52,7 +53,7 @@ namespace Hangfire.Raven.Storage
         {
             return GetOrCreateCached("Monitoring:StateCount", stateName, () =>
             {
-                using var session = _storage.Repository.OpenSession();
+                using var session = _storage.Repository.OpenSession(NoTrackingOptions);
                 return session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>()
                              .Count(x => x.StateData.Name == stateName);
             });
@@ -95,7 +96,7 @@ namespace Hangfire.Raven.Storage
             List<DateTime> dates,
             Func<DateTime, string> formatAction)
         {
-            using var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
             var ids = dates.Select(d => _storage.Repository.GetId(typeof(Counter), formatAction(d))).ToList();
             var counters = session.Load<Counter>(ids);
             var result = new Dictionary<DateTime, long>();
@@ -114,7 +115,7 @@ namespace Hangfire.Raven.Storage
         {
             return GetOrCreateCached("Monitoring:Statistics", string.Empty, () =>
             {
-                using var session = _storage.Repository.OpenSession();
+                using var session = _storage.Repository.OpenSession(NoTrackingOptions);
 
                 var serverLazy = session.Query<RavenServer>()
                        .Statistics(out var serverStats)
@@ -244,7 +245,7 @@ namespace Hangfire.Raven.Storage
         {
             if (jobId == null) throw new ArgumentNullException(nameof(jobId));
 
-            using var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
             var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
             var job = session.Load<RavenJob>(id);
 
@@ -276,7 +277,7 @@ namespace Hangfire.Raven.Storage
         {
             return GetOrCreateCached("Monitoring:Queues", string.Empty, () =>
             {
-                using var session = _storage.Repository.OpenSession();
+                using var session = _storage.Repository.OpenSession(NoTrackingOptions);
 
                 var queueStatsList = session.Query<JobQueue_Stats.Result, JobQueue_Stats>()
                                             .ToList();
@@ -303,7 +304,7 @@ namespace Hangfire.Raven.Storage
 
         public IList<ServerDto> Servers()
         {
-            using var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
 
             return session.Query<RavenServer>()
                          .ToList()
@@ -324,7 +325,7 @@ namespace Hangfire.Raven.Storage
             string stateName,
             Func<RavenJob, Job, Dictionary<string, string>, T> selector)
         {
-            using var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
 
             var jobs = session.Query<RavenJob, RavenJobs_ByStateAndCreatedAt>()
                             .Customize(x => x.WaitForNonStaleResults())
@@ -348,7 +349,7 @@ namespace Hangfire.Raven.Storage
             IEnumerable<string> jobIds,
             Func<RavenJob, Job, Dictionary<string, string>, T> selector)
         {
-            using var session = _storage.Repository.OpenSession();
+            using var session = _storage.Repository.OpenSession(NoTrackingOptions);
 
             var jobs = session.Load<RavenJob>(
                 jobIds.Select(id => _storage.Repository.GetId(typeof(RavenJob), id)))
@@ -396,7 +397,7 @@ namespace Hangfire.Raven.Storage
                 TotalDuration = !stateData.ContainsKey("PerformanceDuration") || !stateData.ContainsKey("Latency")
                     ? new long?()
                     : new long?(long.Parse(stateData["PerformanceDuration"]) + long.Parse(stateData["Latency"])),
-                SucceededAt = JobHelper.DeserializeNullableDateTime(stateData["SucceededAt"])
+                SucceededAt = new DateTime?(JobHelper.DeserializeDateTime(stateData["SucceededAt"]))
             });
         }
 
@@ -405,11 +406,11 @@ namespace Hangfire.Raven.Storage
             return GetJobs<FailedJobDto>(from, count, FailedState.StateName, (jsonJob, job, stateData) => new FailedJobDto
             {
                 Job = job,
-                Reason = jsonJob.StateData.Reason,
-                ExceptionDetails = stateData["ExceptionDetails"],
-                ExceptionMessage = stateData["ExceptionMessage"],
-                ExceptionType = stateData["ExceptionType"],
-                FailedAt = JobHelper.DeserializeNullableDateTime(stateData["FailedAt"])
+                Reason = stateData.ContainsKey("Reason") ? stateData["Reason"] : (string)null,
+                ExceptionDetails = stateData.ContainsKey("ExceptionDetails") ? stateData["ExceptionDetails"] : (string)null,
+                ExceptionMessage = stateData.ContainsKey("ExceptionMessage") ? stateData["ExceptionMessage"] : (string)null,
+                ExceptionType = stateData.ContainsKey("ExceptionType") ? stateData["ExceptionType"] : (string)null,
+                FailedAt = JobHelper.DeserializeNullableDateTime(stateData.ContainsKey("FailedAt") ? stateData["FailedAt"] : (string)null)
             });
         }
 
@@ -425,7 +426,7 @@ namespace Hangfire.Raven.Storage
 
             try
             {
-                using var session = _storage.Repository.OpenSession();
+                using var session = _storage.Repository.OpenSession(NoTrackingOptions);
                 var id = _storage.Repository.GetId(typeof(RavenJob), jobId);
 
                 var revisions = session.Advanced.Revisions.GetFor<RavenJob>(id);
