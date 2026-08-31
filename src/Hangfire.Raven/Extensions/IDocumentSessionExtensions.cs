@@ -8,12 +8,29 @@ namespace Hangfire.Raven.Extensions
     {
         private static IMetadataDictionary GetMetadataForId<T>(this IDocumentSession session, string id)
         {
-            return session.Advanced.GetMetadataFor<T>(session.Load<T>(id));
+            if (session?.Advanced == null || string.IsNullOrEmpty(id)) return null;
+            try
+            {
+                var entity = session.Load<T>(id);
+                return entity != null ? session.Advanced.GetMetadataFor<T>(entity) : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static IMetadataDictionary GetMetadataForObject<T>(this IDocumentSession session, T obj)
         {
-            return session.Advanced.GetMetadataFor<T>(obj);
+            if (session?.Advanced == null || obj == null) return null;
+            try
+            {
+                return session.Advanced.GetMetadataFor<T>(obj);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public static void SetExpiry<T>(this IDocumentSession session, string id, TimeSpan expireIn)
