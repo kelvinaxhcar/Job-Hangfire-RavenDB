@@ -50,8 +50,4 @@
 		<PackageReference Include="Moq" Version="4.20.72" />
 	</ItemGroup>
 
-	<Target Name="PatchRavenServerRuntimeConfig" AfterTargets="Build">
-		<Exec Command="powershell -Command &quot;if (Test-Path '$(TargetDir)RavenDBServer\Raven.Server.runtimeconfig.json') { (Get-Content '$(TargetDir)RavenDBServer\Raven.Server.runtimeconfig.json') -replace '\&quot;tfm\&quot;:\s*\&quot;net8.0\&quot;,', '\&quot;tfm\&quot;: \&quot;net8.0\&quot;, \&quot;rollForward\&quot;: \&quot;Major\&quot;,' | Set-Content '$(TargetDir)RavenDBServer\Raven.Server.runtimeconfig.json' }; Set-Content -Path '$(TargetDir)RavenDBServer\settings.json' -Value '{ \&quot;License.ThrowOnInvalidOrMissingLicense\&quot;: false }'&quot;" />
-	</Target>
-
 </Project>
