@@ -16,7 +16,7 @@ namespace Hangfire.Raven.Tests
         {
             ConfigureServer(new TestServerOptions
             {
-                FrameworkVersion = null
+                FrameworkVersion = "9.0.19"
             });
         }
 

@@ -165,6 +165,33 @@ namespace Hangfire.Raven
             });
         }
 
+        private const string LowestScoreQuery = @"
+            declare function getLowestScore(doc, fromScore, toScore) {
+                if (!doc || !doc.Scores) return null;
+                var minScore = null;
+                var minKey = null;
+                for (var k in doc.Scores) {
+                    if (Object.prototype.hasOwnProperty.call(doc.Scores, k)) {
+                        var v = doc.Scores[k];
+                        if (v >= fromScore && v <= toScore) {
+                            if (minScore === null || v < minScore) {
+                                minScore = v;
+                                minKey = k;
+                            }
+                        }
+                    }
+                }
+                return { Value: minKey };
+            }
+            from RavenSets as s
+            where id() = $id
+            select getLowestScore(s, $fromScore, $toScore)";
+
+        private sealed class LowestScoreResult
+        {
+            public string Value { get; set; }
+        }
+
         public override string GetFirstByLowestScoreFromSet(
           string key,
           double fromScore,
@@ -173,13 +200,16 @@ namespace Hangfire.Raven
             key.ThrowIfNull(nameof(key));
             if (toScore < fromScore)
                 throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.");
+
             using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
             string id = _storage.Repository.GetId(typeof(RavenSet), key);
-            var ravenSet = documentSession.Load<RavenSet>(id);
-            return ravenSet?.Scores.Where(a => a.Value >= fromScore && a.Value <= toScore)
-                                   .OrderBy(a => a.Value)
-                                   .Select(a => a.Key)
-                                   .FirstOrDefault();
+            var result = documentSession.Advanced.RawQuery<LowestScoreResult>(LowestScoreQuery)
+                .AddParameter("id", id)
+                .AddParameter("fromScore", fromScore)
+                .AddParameter("toScore", toScore)
+                .FirstOrDefault();
+
+            return result?.Value;
         }
 
         public override void SetRangeInHash(
@@ -612,10 +642,24 @@ namespace Hangfire.Raven
             return Task.FromResult(GetAllItemsFromSet(key));
         }
 
-        public Task<string> GetFirstByLowestScoreFromSetAsync(string key, double fromScore, double toScore, CancellationToken cancellationToken = default)
+        public async Task<string> GetFirstByLowestScoreFromSetAsync(string key, double fromScore, double toScore, CancellationToken cancellationToken = default)
         {
+            key.ThrowIfNull(nameof(key));
+            if (toScore < fromScore)
+                throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.");
+
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(GetFirstByLowestScoreFromSet(key, fromScore, toScore));
+
+            using var asyncSession = _storage.Repository.OpenAsyncSession(NoTrackingOptions);
+            string id = _storage.Repository.GetId(typeof(RavenSet), key);
+            var result = await asyncSession.Advanced.AsyncRawQuery<LowestScoreResult>(LowestScoreQuery)
+                .AddParameter("id", id)
+                .AddParameter("fromScore", fromScore)
+                .AddParameter("toScore", toScore)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            return result?.Value;
         }
 
         public Task SetRangeInHashAsync(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs, CancellationToken cancellationToken = default)
