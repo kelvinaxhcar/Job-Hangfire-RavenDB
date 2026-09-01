@@ -21,12 +21,13 @@ using System.Threading.Tasks;
 
 namespace Hangfire.Raven
 {
-    public class RavenWriteOnlyTransaction : JobStorageTransaction, IWriteOnlyTransactionAsync
+    public class RavenWriteOnlyTransaction : JobStorageTransaction, IWriteOnlyTransactionAsync, IAsyncDisposable
     {
         private static readonly ILog Logger = LogProvider.For<RavenWriteOnlyTransaction>();
         private readonly RavenStorage _storage;
         private readonly IDocumentSession _session;
         private readonly Queue<Action> _afterCommitCommandQueue = new Queue<Action>();
+        private bool _disposed;
 
         public RavenWriteOnlyTransaction([NotNull] RavenStorage storage)
         {
@@ -446,6 +447,38 @@ namespace Hangfire.Raven
             cancellationToken.ThrowIfCancellationRequested();
             RemoveHash(key);
             return Task.CompletedTask;
+        }
+
+        public override void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _session?.Dispose();
+                }
+
+                _disposed = true;
+            }
+        }
+
+        public virtual ValueTask DisposeAsync()
+        {
+            try
+            {
+                Dispose();
+                return default;
+            }
+            catch (Exception exception)
+            {
+                return ValueTask.FromException(exception);
+            }
         }
     }
 }
