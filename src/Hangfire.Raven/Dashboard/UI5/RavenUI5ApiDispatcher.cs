@@ -231,6 +231,42 @@ namespace Hangfire.Raven.Dashboard.UI5
                 return;
             }
 
+            if (path.EndsWith("/batch-cancel", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith("/batch/delete", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith("/batch-delete", StringComparison.OrdinalIgnoreCase))
+            {
+                var state = context.Request.GetQuery("state");
+                var queue = context.Request.GetQuery("queue");
+                var idsParam = context.Request.GetQuery("jobs") ?? context.Request.GetQuery("jobIds") ?? context.Request.GetQuery("ids");
+
+                using var connection = storage.GetConnection();
+                if (connection is IBatchJobCancellation batchCancellation)
+                {
+                    long deleted = 0;
+                    if (!string.IsNullOrEmpty(state))
+                    {
+                        deleted = batchCancellation.DeleteByState(state);
+                    }
+                    else if (!string.IsNullOrEmpty(queue))
+                    {
+                        deleted = batchCancellation.DeleteByQueue(queue);
+                    }
+                    else if (!string.IsNullOrEmpty(idsParam))
+                    {
+                        var ids = idsParam.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                                          .Select(x => x.Trim());
+                        deleted = batchCancellation.DeleteJobs(ids);
+                    }
+
+                    await context.Response.WriteAsync(JsonConvert.SerializeObject(new
+                    {
+                        status = "ok",
+                        deletedCount = deleted
+                    }, JsonSettings));
+                    return;
+                }
+            }
+
             await context.Response.WriteAsync(JsonConvert.SerializeObject(new { status = "ok" }, JsonSettings));
             }
             catch (Exception ex)
