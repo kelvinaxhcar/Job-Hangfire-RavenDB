@@ -16,8 +16,15 @@ namespace Hangfire.Raven
 {
     public class Repository : IRepository, IDisposable
     {
-        private DocumentStore _documentStore;
+        private IDocumentStore _documentStore;
         private readonly string _database;
+
+        public Repository(IDocumentStore documentStore)
+        {
+            documentStore.ThrowIfNull(nameof(documentStore));
+            _documentStore = documentStore;
+            _database = _documentStore.Database;
+        }
 
         public Repository(RepositoryConfig config)
         {
