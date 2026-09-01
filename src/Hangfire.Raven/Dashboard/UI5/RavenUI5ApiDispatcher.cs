@@ -22,20 +22,23 @@ namespace Hangfire.Raven.Dashboard.UI5
 
         public async Task Dispatch(DashboardContext context)
         {
-            context.Response.ContentType = "application/json";
-
-            if (!(context.Storage is RavenStorage storage))
+            try
             {
-                await context.Response.WriteAsync(JsonConvert.SerializeObject(new { error = "RavenStorage not available" }, JsonSettings));
-                return;
-            }
+                context.Response.ContentType = "application/json";
 
-            var monitoringApi = storage.GetMonitoringApi() as RavenStorageMonitoringApi;
-            if (monitoringApi == null)
-            {
-                await context.Response.WriteAsync(JsonConvert.SerializeObject(new { error = "RavenStorageMonitoringApi not available" }, JsonSettings));
-                return;
-            }
+                var storage = (context.Storage as RavenStorage) ?? (JobStorage.Current as RavenStorage);
+                if (storage == null)
+                {
+                    await context.Response.WriteAsync(JsonConvert.SerializeObject(new { error = "RavenStorage not available" }, JsonSettings));
+                    return;
+                }
+
+                var monitoringApi = storage.GetMonitoringApi() as RavenStorageMonitoringApi;
+                if (monitoringApi == null)
+                {
+                    await context.Response.WriteAsync(JsonConvert.SerializeObject(new { error = "RavenStorageMonitoringApi not available" }, JsonSettings));
+                    return;
+                }
 
             var path = context.Request.Path ?? string.Empty;
 
@@ -229,6 +232,11 @@ namespace Hangfire.Raven.Dashboard.UI5
             }
 
             await context.Response.WriteAsync(JsonConvert.SerializeObject(new { status = "ok" }, JsonSettings));
+            }
+            catch (Exception ex)
+            {
+                await context.Response.WriteAsync(JsonConvert.SerializeObject(new { error = ex.Message, stackTrace = ex.StackTrace }, JsonSettings));
+            }
         }
 
         private static object FormatJob(Common.Job job)
