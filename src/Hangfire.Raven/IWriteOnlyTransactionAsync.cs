@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Hangfire.Raven
 {
-    public interface IWriteOnlyTransactionAsync : IWriteOnlyTransaction
+    public interface IWriteOnlyTransactionAsync : IWriteOnlyTransaction, IAsyncDisposable
     {
         Task CommitAsync(CancellationToken cancellationToken = default);
 
