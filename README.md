@@ -308,6 +308,19 @@ dotnet build
 dotnet test
 ```
 
+### Running Benchmarks
+Run the BenchmarkDotNet suite in Release mode to measure performance and prevent regressions:
+```bash
+dotnet run -c Release --project src/Hangfire.Raven.Benchmarks
+```
+
+Included benchmark scenarios:
+- **`CreateExpiredJob`**: Job creation with parameters and TTL expiration.
+- **`BatchEnqueue`**: High-throughput bulk job insertion (`BulkEnqueue`).
+- **`FetchNextJob`**: Queue dequeue latency and throughput.
+- **`GetStatistics`**: Monitoring API statistics calculation.
+- **`AcquireAndReleaseDistributedLock`**: Distributed lock acquisition and safe release.
+
 ---
 
 ## Contributing
