@@ -41,7 +41,7 @@
 	<ItemGroup>
 		<PackageReference Include="Hangfire.AspNetCore" Version="1.8.15" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-		<PackageReference Include="RavenDB.TestDriver" Version="5.4.214" />
+		<PackageReference Include="RavenDB.TestDriver" Version="6.0.103" />
 		<PackageReference Include="xunit" Version="2.9.2" />
 		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
 		  <PrivateAssets>all</PrivateAssets>
@@ -50,4 +50,4 @@
 		<PackageReference Include="Moq" Version="4.20.72" />
 	</ItemGroup>
 
-	</Project>
+</Project>

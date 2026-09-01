@@ -14,6 +14,7 @@ namespace Hangfire.Raven.Tests
 
         static RavenTestesUnitarios()
         {
+            System.Environment.SetEnvironmentVariable("DOTNET_ROLL_FORWARD", "Major");
             ConfigureServer(new TestServerOptions
             {
                 FrameworkVersion = null
