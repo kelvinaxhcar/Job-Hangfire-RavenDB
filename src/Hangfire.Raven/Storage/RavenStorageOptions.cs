@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Caching.Memory;
+using Polly;
+using Polly.Retry;
 
 namespace Hangfire.Raven.Storage
 {
@@ -10,6 +12,7 @@ namespace Hangfire.Raven.Storage
         private TimeSpan _queuePollInterval;
         private TimeSpan _distributedLockLifetime;
         private TimeSpan _cacheSlidingExpiration;
+        private ResiliencePipeline _retryPolicy;
 
         public RavenStorageOptions()
         {
@@ -82,6 +85,71 @@ namespace Hangfire.Raven.Storage
         }
 
         public IMemoryCache MemoryCache { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether automatic Polly retry policy is enabled for transient errors. Defaults to true.
+        /// </summary>
+        public bool EnableRetryPolicy { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets the maximum number of retry attempts. Defaults to 3.
+        /// </summary>
+        public int MaxRetryAttempts { get; set; } = 3;
+
+        /// <summary>
+        /// Gets or sets the initial retry delay. Defaults to 100ms.
+        /// </summary>
+        public TimeSpan RetryInitialDelay { get; set; } = TimeSpan.FromMilliseconds(100);
+
+        /// <summary>
+        /// Gets or sets the maximum retry delay during exponential backoff. Defaults to 2s.
+        /// </summary>
+        public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromSeconds(2);
+
+        /// <summary>
+        /// Gets or sets the custom or default Polly ResiliencePipeline for I/O and SaveChanges operations.
+        /// </summary>
+        public ResiliencePipeline RetryPolicy
+        {
+            get
+            {
+                if (_retryPolicy == null && EnableRetryPolicy)
+                {
+                    _retryPolicy = CreateDefaultRetryPolicy(MaxRetryAttempts, RetryInitialDelay, RetryMaxDelay);
+                }
+                return _retryPolicy;
+            }
+            set => _retryPolicy = value;
+        }
+
+        /// <summary>
+        /// Factory method to create a default ResiliencePipeline with exponential backoff, jitter, and transient exception handling.
+        /// </summary>
+        public static ResiliencePipeline CreateDefaultRetryPolicy(
+            int maxRetryAttempts = 3,
+            TimeSpan? initialDelay = null,
+            TimeSpan? maxDelay = null)
+        {
+            var baseDelay = initialDelay ?? TimeSpan.FromMilliseconds(100);
+            var maxBackoff = maxDelay ?? TimeSpan.FromSeconds(2);
+
+            return new ResiliencePipelineBuilder()
+                .AddRetry(new RetryStrategyOptions
+                {
+                    MaxRetryAttempts = maxRetryAttempts,
+                    Delay = baseDelay,
+                    MaxDelay = maxBackoff,
+                    BackoffType = DelayBackoffType.Exponential,
+                    UseJitter = true,
+                    ShouldHandle = new PredicateBuilder()
+                        .Handle<global::Raven.Client.Exceptions.ConcurrencyException>()
+                        .Handle<global::Raven.Client.Exceptions.RavenException>()
+                        .Handle<System.TimeoutException>()
+                        .Handle<System.Net.Http.HttpRequestException>()
+                        .Handle<System.IO.IOException>()
+                })
+                .Build();
+        }
 
         public string ClientId => _clientId;
     }

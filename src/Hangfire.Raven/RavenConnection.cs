@@ -68,13 +68,16 @@ namespace Hangfire.Raven
                 CreatedAt = createdAt,
                 Parameters = parameters
             };
-            using (IDocumentSession session = _storage.Repository.OpenSession())
+            return ExecuteWithRetry(() =>
             {
-                session.Store(entity);
-                session.SetExpiry(entity, createdAt + expireIn);
-                session.SaveChanges();
-                return expiredJob;
-            }
+                using (IDocumentSession session = _storage.Repository.OpenSession())
+                {
+                    session.Store(entity);
+                    session.SetExpiry(entity, createdAt + expireIn);
+                    session.SaveChanges();
+                    return expiredJob;
+                }
+            });
         }
 
         public override JobData GetJobData(string key)
@@ -122,10 +125,13 @@ namespace Hangfire.Raven
         {
             jobId.ThrowIfNull(nameof(jobId));
             name.ThrowIfNull(nameof(name));
-            using var documentSession = _storage.Repository.OpenSession();
-            string id = _storage.Repository.GetId(typeof(RavenJob), jobId);
-            documentSession.Load<RavenJob>(id).Parameters[name] = value;
-            documentSession.SaveChanges();
+            ExecuteWithRetry(() =>
+            {
+                using var documentSession = _storage.Repository.OpenSession();
+                string id = _storage.Repository.GetId(typeof(RavenJob), jobId);
+                documentSession.Load<RavenJob>(id).Parameters[name] = value;
+                documentSession.SaveChanges();
+            });
 
             RemoveCache("RavenJobData", jobId);
             RemoveCache("RavenJobState", jobId);
@@ -201,15 +207,18 @@ namespace Hangfire.Raven
             if (toScore < fromScore)
                 throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.");
 
-            using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
-            string id = _storage.Repository.GetId(typeof(RavenSet), key);
-            var result = documentSession.Advanced.RawQuery<LowestScoreResult>(LowestScoreQuery)
-                .AddParameter("id", id)
-                .AddParameter("fromScore", fromScore)
-                .AddParameter("toScore", toScore)
-                .FirstOrDefault();
+            return ExecuteWithRetry(() =>
+            {
+                using var documentSession = _storage.Repository.OpenSession(NoTrackingOptions);
+                string id = _storage.Repository.GetId(typeof(RavenSet), key);
+                var result = documentSession.Advanced.RawQuery<LowestScoreResult>(LowestScoreQuery)
+                    .AddParameter("id", id)
+                    .AddParameter("fromScore", fromScore)
+                    .AddParameter("toScore", toScore)
+                    .FirstOrDefault();
 
-            return result?.Value;
+                return result?.Value;
+            });
         }
 
         public override void SetRangeInHash(
@@ -218,17 +227,20 @@ namespace Hangfire.Raven
         {
             key.ThrowIfNull(nameof(key));
             keyValuePairs.ThrowIfNull(nameof(keyValuePairs));
-            using var documentSession = _storage.Repository.OpenSession();
-            var id = _storage.Repository.GetId(typeof(RavenHash), key);
-            var entity = documentSession.Load<RavenHash>(id);
-            if (entity == null)
+            ExecuteWithRetry(() =>
             {
-                entity = new RavenHash() { Id = id };
-                documentSession.Store(entity);
-            }
-            foreach (KeyValuePair<string, string> keyValuePair in keyValuePairs)
-                entity.Fields[keyValuePair.Key] = keyValuePair.Value;
-            documentSession.SaveChanges();
+                using var documentSession = _storage.Repository.OpenSession();
+                var id = _storage.Repository.GetId(typeof(RavenHash), key);
+                var entity = documentSession.Load<RavenHash>(id);
+                if (entity == null)
+                {
+                    entity = new RavenHash() { Id = id };
+                    documentSession.Store(entity);
+                }
+                foreach (KeyValuePair<string, string> keyValuePair in keyValuePairs)
+                    entity.Fields[keyValuePair.Key] = keyValuePair.Value;
+                documentSession.SaveChanges();
+            });
 
             RemoveCache("HashCount", key);
             RemoveCache("HashEntries", key);
@@ -250,66 +262,78 @@ namespace Hangfire.Raven
         {
             serverId.ThrowIfNull(nameof(serverId));
             context.ThrowIfNull(nameof(context));
-            using var documentSession = _storage.Repository.OpenSession();
-            var id = _storage.Repository.GetId(typeof(RavenServer), serverId);
-            var entity = documentSession.Load<RavenServer>(id);
-            if (entity == null)
+            ExecuteWithRetry(() =>
             {
-                entity = new RavenServer()
+                using var documentSession = _storage.Repository.OpenSession();
+                var id = _storage.Repository.GetId(typeof(RavenServer), serverId);
+                var entity = documentSession.Load<RavenServer>(id);
+                if (entity == null)
                 {
-                    Id = id,
-                    Data = new RavenServer.ServerData()
+                    entity = new RavenServer()
                     {
-                        StartedAt = new DateTime?(DateTime.UtcNow)
-                    }
-                };
-                documentSession.Store(entity);
-            }
-            entity.Data.WorkerCount = context.WorkerCount;
-            entity.Data.Queues = context.Queues;
-            entity.Data.StartedAt = new DateTime?(DateTime.UtcNow);
-            entity.LastHeartbeat = DateTime.UtcNow;
-            documentSession.SaveChanges();
+                        Id = id,
+                        Data = new RavenServer.ServerData()
+                        {
+                            StartedAt = new DateTime?(DateTime.UtcNow)
+                        }
+                    };
+                    documentSession.Store(entity);
+                }
+                entity.Data.WorkerCount = context.WorkerCount;
+                entity.Data.Queues = context.Queues;
+                entity.Data.StartedAt = new DateTime?(DateTime.UtcNow);
+                entity.LastHeartbeat = DateTime.UtcNow;
+                documentSession.SaveChanges();
+            });
         }
 
         public override void RemoveServer(string serverId)
         {
             serverId.ThrowIfNull(nameof(serverId));
-            using var documentSession = _storage.Repository.OpenSession();
-            var id = _storage.Repository.GetId(typeof(RavenServer), serverId);
-            documentSession.Delete(id);
-            documentSession.SaveChanges();
+            ExecuteWithRetry(() =>
+            {
+                using var documentSession = _storage.Repository.OpenSession();
+                var id = _storage.Repository.GetId(typeof(RavenServer), serverId);
+                documentSession.Delete(id);
+                documentSession.SaveChanges();
+            });
         }
 
         public override void Heartbeat(string serverId)
         {
             serverId.ThrowIfNull(nameof(serverId));
-            using var documentSession = _storage.Repository.OpenSession();
-            var id = _storage.Repository.GetId(typeof(RavenServer), serverId);
-            var entity = documentSession.Load<RavenServer>(id);
-            if (entity == null)
+            ExecuteWithRetry(() =>
             {
-                Logger.WarnFormat("Server '{0}' was not found to update heartbeat.", serverId);
-                return;
-            }
-            entity.LastHeartbeat = DateTime.UtcNow;
-            documentSession.SaveChanges();
+                using var documentSession = _storage.Repository.OpenSession();
+                var id = _storage.Repository.GetId(typeof(RavenServer), serverId);
+                var entity = documentSession.Load<RavenServer>(id);
+                if (entity == null)
+                {
+                    Logger.WarnFormat("Server '{0}' was not found to update heartbeat.", serverId);
+                    return;
+                }
+                entity.LastHeartbeat = DateTime.UtcNow;
+                documentSession.SaveChanges();
+            });
         }
 
         public override int RemoveTimedOutServers(TimeSpan timeOut)
         {
             if (timeOut.Duration() != timeOut)
                 throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
-            using var documentSession = _storage.Repository.OpenSession();
-            var heartBeatCutOff = DateTime.UtcNow.Add(timeOut.Negate());
-            List<RavenServer> list = documentSession.Query<RavenServer>()
-                .Where(t => t.LastHeartbeat < heartBeatCutOff)
-                .ToList();
+            return ExecuteWithRetry(() =>
+            {
+                using var documentSession = _storage.Repository.OpenSession();
+                var heartBeatCutOff = DateTime.UtcNow.Add(timeOut.Negate());
+                List<RavenServer> list = documentSession.Query<RavenServer>()
+                    .Where(t => t.LastHeartbeat < heartBeatCutOff)
+                    .ToList();
 
-            foreach (RavenServer entity in list)
-                documentSession.Delete(entity);
-            documentSession.SaveChanges();
-            return list.Count;
+                foreach (RavenServer entity in list)
+                    documentSession.Delete(entity);
+                documentSession.SaveChanges();
+                return list.Count;
+            });
         }
 
         public override long GetSetCount(string key)
@@ -533,11 +557,14 @@ namespace Hangfire.Raven
                 Parameters = parameters
             };
 
-            using var session = _storage.Repository.OpenAsyncSession();
-            await session.StoreAsync(entity, cancellationToken);
-            session.SetExpiry(entity, createdAt + expireIn);
-            await session.SaveChangesAsync(cancellationToken);
-            return expiredJob;
+            return await ExecuteWithRetryAsync(async ct =>
+            {
+                using var session = _storage.Repository.OpenAsyncSession();
+                await session.StoreAsync(entity, ct).ConfigureAwait(false);
+                session.SetExpiry(entity, createdAt + expireIn);
+                await session.SaveChangesAsync(ct).ConfigureAwait(false);
+                return expiredJob;
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<JobData> GetJobDataAsync(string key, CancellationToken cancellationToken = default)
@@ -594,18 +621,21 @@ namespace Hangfire.Raven
             name.ThrowIfNull(nameof(name));
             cancellationToken.ThrowIfCancellationRequested();
 
-            using var documentSession = _storage.Repository.OpenAsyncSession();
-            string id = _storage.Repository.GetId(typeof(RavenJob), jobId);
-            var ravenJob = await documentSession.LoadAsync<RavenJob>(id, cancellationToken);
-            if (ravenJob != null)
+            await ExecuteWithRetryAsync(async ct =>
             {
-                ravenJob.Parameters[name] = value;
-                await documentSession.SaveChangesAsync(cancellationToken);
+                using var documentSession = _storage.Repository.OpenAsyncSession();
+                string id = _storage.Repository.GetId(typeof(RavenJob), jobId);
+                var ravenJob = await documentSession.LoadAsync<RavenJob>(id, ct);
+                if (ravenJob != null)
+                {
+                    ravenJob.Parameters[name] = value;
+                    await documentSession.SaveChangesAsync(ct);
+                }
+            }, cancellationToken).ConfigureAwait(false);
 
-                RemoveCache("RavenJobData", jobId);
-                RemoveCache("RavenJobState", jobId);
-                RemoveCache("JobParam", $"{jobId}:{name}");
-            }
+            RemoveCache("RavenJobData", jobId);
+            RemoveCache("RavenJobState", jobId);
+            RemoveCache("JobParam", $"{jobId}:{name}");
         }
 
         public async Task<string> GetJobParameterAsync(string jobId, string name, CancellationToken cancellationToken = default)
@@ -650,16 +680,19 @@ namespace Hangfire.Raven
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            using var asyncSession = _storage.Repository.OpenAsyncSession(NoTrackingOptions);
-            string id = _storage.Repository.GetId(typeof(RavenSet), key);
-            var result = await asyncSession.Advanced.AsyncRawQuery<LowestScoreResult>(LowestScoreQuery)
-                .AddParameter("id", id)
-                .AddParameter("fromScore", fromScore)
-                .AddParameter("toScore", toScore)
-                .FirstOrDefaultAsync(cancellationToken)
-                .ConfigureAwait(false);
+            return await ExecuteWithRetryAsync(async ct =>
+            {
+                using var asyncSession = _storage.Repository.OpenAsyncSession(NoTrackingOptions);
+                string id = _storage.Repository.GetId(typeof(RavenSet), key);
+                var result = await asyncSession.Advanced.AsyncRawQuery<LowestScoreResult>(LowestScoreQuery)
+                    .AddParameter("id", id)
+                    .AddParameter("fromScore", fromScore)
+                    .AddParameter("toScore", toScore)
+                    .FirstOrDefaultAsync(ct)
+                    .ConfigureAwait(false);
 
-            return result?.Value;
+                return result?.Value;
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         public Task SetRangeInHashAsync(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs, CancellationToken cancellationToken = default)
@@ -776,11 +809,57 @@ namespace Hangfire.Raven
 
         private string GetCacheKey(string type, string key) => $"Hangfire:Raven:{_storage.Options.ClientId}:{type}:{key}";
 
+        private T ExecuteWithRetry<T>(Func<T> action)
+        {
+            var policy = _storage?.Options?.RetryPolicy;
+            if (policy != null)
+            {
+                return policy.Execute(_ => action());
+            }
+            return action();
+        }
+
+        private void ExecuteWithRetry(Action action)
+        {
+            var policy = _storage?.Options?.RetryPolicy;
+            if (policy != null)
+            {
+                policy.Execute(_ => action());
+            }
+            else
+            {
+                action();
+            }
+        }
+
+        private async Task<T> ExecuteWithRetryAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken = default)
+        {
+            var policy = _storage?.Options?.RetryPolicy;
+            if (policy != null)
+            {
+                return await policy.ExecuteAsync(async ct => await action(ct).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            }
+            return await action(cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task ExecuteWithRetryAsync(Func<CancellationToken, Task> action, CancellationToken cancellationToken = default)
+        {
+            var policy = _storage?.Options?.RetryPolicy;
+            if (policy != null)
+            {
+                await policy.ExecuteAsync(async ct => await action(ct).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await action(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         private T GetOrCreateCached<T>(string type, string key, Func<T> factory)
         {
             if (!_storage.Options.EnableCache || _storage.Cache == null)
             {
-                return factory();
+                return ExecuteWithRetry(factory);
             }
 
             var cacheKey = GetCacheKey(type, key);
@@ -789,7 +868,7 @@ namespace Hangfire.Raven
                 return cachedValue;
             }
 
-            var value = factory();
+            var value = ExecuteWithRetry(factory);
             var options = new MemoryCacheEntryOptions
             {
                 SlidingExpiration = _storage.Options.CacheSlidingExpiration
@@ -802,7 +881,7 @@ namespace Hangfire.Raven
         {
             if (!_storage.Options.EnableCache || _storage.Cache == null)
             {
-                return await factory();
+                return await ExecuteWithRetryAsync(_ => factory()).ConfigureAwait(false);
             }
 
             var cacheKey = GetCacheKey(type, key);
@@ -811,7 +890,7 @@ namespace Hangfire.Raven
                 return cachedValue;
             }
 
-            var value = await factory();
+            var value = await ExecuteWithRetryAsync(_ => factory()).ConfigureAwait(false);
             var options = new MemoryCacheEntryOptions
             {
                 SlidingExpiration = _storage.Options.CacheSlidingExpiration
