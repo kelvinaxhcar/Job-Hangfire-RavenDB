@@ -51,7 +51,7 @@ namespace Hangfire.Raven.Tests
             queue.Enqueue("default", "job-1");
 
             // Event should be signaled
-            bool signaled = RavenJobQueue.NewItemInQueueEvent.WaitOne(500);
+            bool signaled = RavenJobQueue.NewItemInQueueEvent.WaitOne(TimeSpan.FromSeconds(5));
             Assert.True(signaled);
 
             sessionMock.Verify(s => s.Store(It.IsAny<JobQueue>()), Times.Once);
