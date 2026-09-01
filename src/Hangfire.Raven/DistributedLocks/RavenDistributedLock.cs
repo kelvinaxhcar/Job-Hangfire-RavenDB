@@ -83,66 +83,86 @@ namespace Hangfire.Raven.DistributedLocks
                 DateTime deadline = DateTime.UtcNow.Add(timeout);
                 int millisecondsTimeout = timeout.TotalMilliseconds > 10000.0 ? 2000 : Math.Max(50, (int)(timeout.TotalMilliseconds / 5.0));
 
-                while (true)
+                EventWaitHandle eventWaitHandle = null;
+                try
                 {
-                    using (IDocumentSession session = _storage.Repository.OpenSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide }))
+                    eventWaitHandle = new EventWaitHandle(false, EventResetMode.AutoReset, EventWaitHandleName);
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    // Named EventWaitHandle is not supported on some non-Windows platforms
+                }
+
+                using (eventWaitHandle)
+                {
+                    while (true)
                     {
-                        var existingLock = session.Advanced.ClusterTransaction.GetCompareExchangeValue<DistributedLock>(LockKey);
-
-                        if (existingLock == null || existingLock.Value == null)
+                        using (IDocumentSession session = _storage.Repository.OpenSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide }))
                         {
-                            var lockValue = new DistributedLock
-                            {
-                                ClientId = _storage.Options.ClientId,
-                                Resource = _resource,
-                                AcquiredAt = DateTime.UtcNow,
-                                ExpiresAt = DateTime.UtcNow.Add(_options.DistributedLockLifetime)
-                            };
+                            var existingLock = session.Advanced.ClusterTransaction.GetCompareExchangeValue<DistributedLock>(LockKey);
 
-                            session.Advanced.ClusterTransaction.CreateCompareExchangeValue(LockKey, lockValue);
-
-                            try
+                            if (existingLock == null || existingLock.Value == null)
                             {
-                                session.SaveChanges();
-                                _distributedLock = lockValue;
-                                return;
+                                var lockValue = new DistributedLock
+                                {
+                                    ClientId = _storage.Options.ClientId,
+                                    Resource = _resource,
+                                    AcquiredAt = DateTime.UtcNow,
+                                    ExpiresAt = DateTime.UtcNow.Add(_options.DistributedLockLifetime)
+                                };
+
+                                session.Advanced.ClusterTransaction.CreateCompareExchangeValue(LockKey, lockValue);
+
+                                try
+                                {
+                                    session.SaveChanges();
+                                    _distributedLock = lockValue;
+                                    return;
+                                }
+                                catch (ConcurrencyException)
+                                {
+                                    // Another node/thread claimed the compare exchange value concurrently
+                                }
                             }
-                            catch (ConcurrencyException)
+                            else if (existingLock.Value.ExpiresAt.HasValue && existingLock.Value.ExpiresAt.Value < DateTime.UtcNow)
                             {
-                                // Another node/thread claimed the compare exchange value concurrently
-                            }
-                        }
-                        else if (existingLock.Value.ExpiresAt.HasValue && existingLock.Value.ExpiresAt.Value < DateTime.UtcNow)
-                        {
-                            // Lock has expired, atomically take ownership
-                            existingLock.Value.ClientId = _storage.Options.ClientId;
-                            existingLock.Value.AcquiredAt = DateTime.UtcNow;
-                            existingLock.Value.ExpiresAt = DateTime.UtcNow.Add(_options.DistributedLockLifetime);
+                                // Lock has expired, atomically take ownership
+                                existingLock.Value.ClientId = _storage.Options.ClientId;
+                                existingLock.Value.AcquiredAt = DateTime.UtcNow;
+                                existingLock.Value.ExpiresAt = DateTime.UtcNow.Add(_options.DistributedLockLifetime);
 
-                            try
+                                try
+                                {
+                                    session.SaveChanges();
+                                    _distributedLock = existingLock.Value;
+                                    return;
+                                }
+                                catch (ConcurrencyException)
+                                {
+                                    // Another node claimed the expired compare exchange value concurrently
+                                }
+                            }
+
+                            if (DateTime.UtcNow >= deadline)
                             {
-                                session.SaveChanges();
-                                _distributedLock = existingLock.Value;
-                                return;
+                                break;
                             }
-                            catch (ConcurrencyException)
+
+                            if (eventWaitHandle != null)
                             {
-                                // Another node claimed the expired compare exchange value concurrently
+                                try
+                                {
+                                    eventWaitHandle.WaitOne(millisecondsTimeout);
+                                }
+                                catch (PlatformNotSupportedException)
+                                {
+                                    Thread.Sleep(millisecondsTimeout);
+                                }
                             }
-                        }
-
-                        if (DateTime.UtcNow >= deadline)
-                        {
-                            break;
-                        }
-
-                        try
-                        {
-                            new EventWaitHandle(false, EventResetMode.AutoReset, EventWaitHandleName).WaitOne(millisecondsTimeout);
-                        }
-                        catch (PlatformNotSupportedException)
-                        {
-                            Thread.Sleep(millisecondsTimeout);
+                            else
+                            {
+                                Thread.Sleep(millisecondsTimeout);
+                            }
                         }
                     }
                 }
@@ -181,7 +201,10 @@ namespace Hangfire.Raven.DistributedLocks
                 {
                     if (EventWaitHandle.TryOpenExisting(EventWaitHandleName, out EventWaitHandle result))
                     {
-                        result.Set();
+                        using (result)
+                        {
+                            result.Set();
+                        }
                     }
                 }
                 catch (PlatformNotSupportedException)
