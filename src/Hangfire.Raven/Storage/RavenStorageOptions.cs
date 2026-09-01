@@ -8,7 +8,6 @@ namespace Hangfire.Raven.Storage
 {
     public class RavenStorageOptions
     {
-        private readonly string _clientId = null;
         private TimeSpan _queuePollInterval;
         private TimeSpan _distributedLockLifetime;
         private TimeSpan _cacheSlidingExpiration;
@@ -23,7 +22,6 @@ namespace Hangfire.Raven.Storage
             TransactionTimeout = TimeSpan.FromMinutes(1.0);
             DistributedLockLifetime = TimeSpan.FromSeconds(30.0);
             CacheSlidingExpiration = TimeSpan.FromSeconds(3.0);
-            _clientId = Guid.NewGuid().ToString().Replace("-", string.Empty);
         }
 
         public TimeSpan QueuePollInterval
@@ -151,6 +149,6 @@ namespace Hangfire.Raven.Storage
                 .Build();
         }
 
-        public string ClientId => _clientId;
+        public string ClientId { get; set; } = Guid.NewGuid().ToString().Replace("-", string.Empty);
     }
 }
