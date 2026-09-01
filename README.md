@@ -142,6 +142,29 @@ using (var server = new BackgroundJobServer())
 }
 ```
 
+### 4. ASP.NET Core Health Checks
+
+Monitor RavenDB connectivity, database existence, and index health for container orchestrators (Kubernetes, Docker Swarm):
+
+```csharp
+using Hangfire.Raven.Extensions;
+
+// Register RavenDB health check (resolves RavenStorage / DocumentStore automatically from DI)
+builder.Services.AddHealthChecks()
+    .AddRavenDb(name: "ravendb", tags: new[] { "db", "ready" });
+
+// Or specify options to customize stale index thresholds:
+builder.Services.AddHealthChecks()
+    .AddRavenDb(name: "ravendb", configureOptions: options =>
+    {
+        options.CheckStaleIndexes = true;
+        options.MaxAllowedStaleIndexes = 0;
+    });
+
+// Map Health Check endpoint
+app.MapHealthChecks("/healthz");
+```
+
 ---
 
 ## Creating Background Jobs
