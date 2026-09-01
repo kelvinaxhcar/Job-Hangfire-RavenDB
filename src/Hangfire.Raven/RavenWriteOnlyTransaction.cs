@@ -42,7 +42,15 @@ namespace Hangfire.Raven
         {
             try
             {
-                _session.SaveChanges();
+                var policy = _storage?.Options?.RetryPolicy;
+                if (policy != null)
+                {
+                    policy.Execute(() => _session.SaveChanges());
+                }
+                else
+                {
+                    _session.SaveChanges();
+                }
             }
             catch (ConcurrencyException ex)
             {

@@ -22,7 +22,7 @@
 - 🚀 **High-Throughput Bulk Insert (`IJobStorageBatchConnection`)**: Native streaming `BulkInsert` operation for enqueuing thousands of jobs per second with minimal memory and HTTP overhead.
 - ⚡ **Native Asynchronous Operations (`IStorageConnectionAsync` & `IWriteOnlyTransactionAsync`)**: Full non-blocking async storage operations backed by RavenDB's `IAsyncDocumentSession` and `SaveChangesAsync()`.
 - 📜 **Immutable Job State Audit Trail (RavenDB Revisions)**: Native Document Revisions integration capturing the full lifecycle and state transitions of every job with compliance audit history.
-- 🔔 **Event-Driven Dequeue (RavenDB Changes API)**: Instant push-based queue notifications (< 1ms latency) via WebSocket changes listener with automatic polling fallback.
+- 🔄 **Resilient I/O & Automatic Retry Policy (Polly)**: Built-in resilience pipeline with exponential backoff and jitter for transient network failures, RavenDB concurrency conflicts, and cluster failover interruptions. Fully configurable via `RavenStorageOptions.RetryPolicy`.
 - 🦅 **RavenDB Storage & Index Metrics**: Full cluster observability (database size, total documents, index health status).
 
 ---
@@ -231,6 +231,14 @@ var options = new RavenStorageOptions
     // Enable in-memory caching with sliding expiration for high-frequency reads
     EnableCache = true,
     CacheSlidingExpiration = TimeSpan.FromSeconds(3),
+
+    // Enable Polly automatic retry policy with exponential backoff & jitter for transient errors
+    EnableRetryPolicy = true,
+    MaxRetryAttempts = 3,
+    RetryInitialDelay = TimeSpan.FromMilliseconds(100),
+    RetryMaxDelay = TimeSpan.FromSeconds(2),
+    // Or specify a custom Polly ResiliencePipeline:
+    // RetryPolicy = customPipeline,
 
     // Enable RavenDB document revisions for job audit trailing
     EnableJobRevisions = true,
