@@ -1,4 +1,4 @@
-﻿using Raven.Client.Documents.Session;
+using Raven.Client.Documents.Session;
 using Raven.Client.Documents;
 using System;
 using System.Collections.Generic;
@@ -56,17 +56,24 @@ namespace Hangfire.Raven.Tests
         }
         public string ObterNomeDoTeste()
         {
-            var valueHelper = _helper
-                .GetType()
-                ?.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic)
-                ?.GetValue(_helper);
+            try
+            {
+                var valueHelper = _helper
+                    ?.GetType()
+                    ?.GetField("test", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.GetValue(_helper);
 
-            var nomeDoTeste = ((ITest)valueHelper)
-                .DisplayName
-                .Split(".")
-                .LastOrDefault();
+                if (valueHelper is ITest test && !string.IsNullOrEmpty(test.DisplayName))
+                {
+                    var nomeDoTeste = test.DisplayName.Split(".").LastOrDefault();
+                    return Regex.Replace(nomeDoTeste, "\\W", "_");
+                }
+            }
+            catch
+            {
+            }
 
-            return Regex.Replace(nomeDoTeste, "\\W", "_");
+            return "db_" + Guid.NewGuid().ToString("N").Substring(0, 10);
         }
 
         protected void SalvarAlteracoes()
