@@ -197,11 +197,19 @@ namespace Hangfire.Raven.Storage
         public JobList<DeletedJobDto> DeletedJobs(int from, int count)
         {
             return GetJobs(from, count, DeletedState.StateName, (job, deserializedJob, stateData) =>
-                new DeletedJobDto
+            {
+                DateTime? deletedAt = null;
+                if (stateData != null && stateData.TryGetValue("DeletedAt", out var deletedAtStr))
+                {
+                    deletedAt = JobHelper.DeserializeNullableDateTime(deletedAtStr);
+                }
+
+                return new DeletedJobDto
                 {
                     Job = deserializedJob,
-                    DeletedAt = JobHelper.DeserializeNullableDateTime(stateData.FirstOrDefault(x=> x.Key == "DeletedAt").Value)
-                });
+                    DeletedAt = deletedAt
+                };
+            });
         }
 
         public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int from, int perPage)
@@ -213,13 +221,17 @@ namespace Hangfire.Raven.Storage
 
         private EnqueuedJobDto CreateEnqueuedJobDto(RavenJob job, Job deserializedJob, Dictionary<string, string> stateData)
         {
+            DateTime? enqueuedAt = null;
+            if (job.StateData?.Name == EnqueuedState.StateName && stateData != null && stateData.TryGetValue("EnqueuedAt", out var enqAtStr))
+            {
+                enqueuedAt = JobHelper.DeserializeNullableDateTime(enqAtStr);
+            }
+
             return new EnqueuedJobDto
             {
                 Job = deserializedJob,
                 State = job.StateData?.Name,
-                EnqueuedAt = job.StateData?.Name == EnqueuedState.StateName
-                    ? JobHelper.DeserializeNullableDateTime(stateData.FirstOrDefault(x => x.Key == "EnqueuedAt").Value)
-                    : null
+                EnqueuedAt = enqueuedAt
             };
         }
 
@@ -231,13 +243,17 @@ namespace Hangfire.Raven.Storage
 
         private FetchedJobDto CreateFetchedJobDto(RavenJob job, Job deserializedJob, Dictionary<string, string> stateData)
         {
+            DateTime? fetchedAt = null;
+            if (job.StateData?.Name == ProcessingState.StateName && stateData != null && stateData.TryGetValue("StartedAt", out var startStr))
+            {
+                fetchedAt = JobHelper.DeserializeNullableDateTime(startStr);
+            }
+
             return new FetchedJobDto
             {
                 Job = deserializedJob,
                 State = job.StateData?.Name,
-                FetchedAt = job.StateData?.Name == ProcessingState.StateName
-                    ? JobHelper.DeserializeNullableDateTime(stateData.FirstOrDefault(x => x.Key == "StartedAt").Value)
-                    : null
+                FetchedAt = fetchedAt
             };
         }
 
@@ -265,7 +281,7 @@ namespace Hangfire.Raven.Storage
         {
             try
             {
-                return invocationData.Deserialize();
+                return invocationData.DeserializeJob();
             }
             catch (JobLoadException)
             {
@@ -369,48 +385,136 @@ namespace Hangfire.Raven.Storage
 
         public JobList<ProcessingJobDto> ProcessingJobs(int from, int count)
         {
-            return GetJobs<ProcessingJobDto>(from, count, ProcessingState.StateName, (jsonJob, job, stateData) => new ProcessingJobDto
+            return GetJobs<ProcessingJobDto>(from, count, ProcessingState.StateName, (jsonJob, job, stateData) =>
             {
-                Job = job,
-                ServerId = stateData.ContainsKey("ServerId") ? stateData["ServerId"] : stateData["ServerName"],
-                StartedAt = new DateTime?(JobHelper.DeserializeDateTime(stateData["StartedAt"]))
+                string serverId = null;
+                DateTime? startedAt = null;
+
+                if (stateData != null)
+                {
+                    if (stateData.TryGetValue("ServerId", out var sid) && !string.IsNullOrEmpty(sid))
+                    {
+                        serverId = sid;
+                    }
+                    else if (stateData.TryGetValue("ServerName", out var sname) && !string.IsNullOrEmpty(sname))
+                    {
+                        serverId = sname;
+                    }
+
+                    if (stateData.TryGetValue("StartedAt", out var startedAtStr))
+                    {
+                        startedAt = JobHelper.DeserializeNullableDateTime(startedAtStr);
+                    }
+                }
+
+                return new ProcessingJobDto
+                {
+                    Job = job,
+                    ServerId = serverId ?? "Unknown",
+                    StartedAt = startedAt
+                };
             });
         }
 
         public JobList<ScheduledJobDto> ScheduledJobs(int from, int count)
         {
-            return GetJobs<ScheduledJobDto>(from, count, ScheduledState.StateName, (jsonJob, job, stateData) => new ScheduledJobDto
+            return GetJobs<ScheduledJobDto>(from, count, ScheduledState.StateName, (jsonJob, job, stateData) =>
             {
-                Job = job,
-                EnqueueAt = JobHelper.DeserializeDateTime(stateData["EnqueueAt"]),
-                ScheduledAt = new DateTime?(JobHelper.DeserializeDateTime(stateData["ScheduledAt"]))
+                DateTime enqueueAt = default;
+                DateTime? scheduledAt = null;
+
+                if (stateData != null)
+                {
+                    if (stateData.TryGetValue("EnqueueAt", out var enqueueAtStr))
+                    {
+                        enqueueAt = JobHelper.DeserializeDateTime(enqueueAtStr);
+                    }
+                    if (stateData.TryGetValue("ScheduledAt", out var scheduledAtStr))
+                    {
+                        scheduledAt = JobHelper.DeserializeNullableDateTime(scheduledAtStr);
+                    }
+                }
+
+                return new ScheduledJobDto
+                {
+                    Job = job,
+                    EnqueueAt = enqueueAt,
+                    ScheduledAt = scheduledAt
+                };
             });
         }
 
         public JobList<SucceededJobDto> SucceededJobs(int from, int count)
         {
-            return GetJobs<SucceededJobDto>(from, count, SucceededState.StateName, (jsonJob, job, stateData) => new SucceededJobDto
+            return GetJobs<SucceededJobDto>(from, count, SucceededState.StateName, (jsonJob, job, stateData) =>
             {
-                Job = job,
-                InSucceededState = true,
-                Result = stateData.ContainsKey("Result") ? (object)stateData["Result"] : (object)(string)null,
-                TotalDuration = !stateData.ContainsKey("PerformanceDuration") || !stateData.ContainsKey("Latency")
-                    ? new long?()
-                    : new long?(long.Parse(stateData["PerformanceDuration"]) + long.Parse(stateData["Latency"])),
-                SucceededAt = new DateTime?(JobHelper.DeserializeDateTime(stateData["SucceededAt"]))
+                object result = null;
+                long? totalDuration = null;
+                DateTime? succeededAt = null;
+
+                if (stateData != null)
+                {
+                    if (stateData.TryGetValue("Result", out var r))
+                    {
+                        result = r;
+                    }
+
+                    if (stateData.TryGetValue("PerformanceDuration", out var perfStr) &&
+                        stateData.TryGetValue("Latency", out var latStr) &&
+                        long.TryParse(perfStr, out var perf) &&
+                        long.TryParse(latStr, out var lat))
+                    {
+                        totalDuration = perf + lat;
+                    }
+
+                    if (stateData.TryGetValue("SucceededAt", out var succStr))
+                    {
+                        succeededAt = JobHelper.DeserializeNullableDateTime(succStr);
+                    }
+                }
+
+                return new SucceededJobDto
+                {
+                    Job = job,
+                    InSucceededState = true,
+                    Result = result,
+                    TotalDuration = totalDuration,
+                    SucceededAt = succeededAt
+                };
             });
         }
 
         public JobList<FailedJobDto> FailedJobs(int from, int count)
         {
-            return GetJobs<FailedJobDto>(from, count, FailedState.StateName, (jsonJob, job, stateData) => new FailedJobDto
+            return GetJobs<FailedJobDto>(from, count, FailedState.StateName, (jsonJob, job, stateData) =>
             {
-                Job = job,
-                Reason = stateData.ContainsKey("Reason") ? stateData["Reason"] : (string)null,
-                ExceptionDetails = stateData.ContainsKey("ExceptionDetails") ? stateData["ExceptionDetails"] : (string)null,
-                ExceptionMessage = stateData.ContainsKey("ExceptionMessage") ? stateData["ExceptionMessage"] : (string)null,
-                ExceptionType = stateData.ContainsKey("ExceptionType") ? stateData["ExceptionType"] : (string)null,
-                FailedAt = JobHelper.DeserializeNullableDateTime(stateData.ContainsKey("FailedAt") ? stateData["FailedAt"] : (string)null)
+                string reason = null;
+                string exceptionDetails = null;
+                string exceptionMessage = null;
+                string exceptionType = null;
+                DateTime? failedAt = null;
+
+                if (stateData != null)
+                {
+                    stateData.TryGetValue("Reason", out reason);
+                    stateData.TryGetValue("ExceptionDetails", out exceptionDetails);
+                    stateData.TryGetValue("ExceptionMessage", out exceptionMessage);
+                    stateData.TryGetValue("ExceptionType", out exceptionType);
+                    if (stateData.TryGetValue("FailedAt", out var failedAtStr))
+                    {
+                        failedAt = JobHelper.DeserializeNullableDateTime(failedAtStr);
+                    }
+                }
+
+                return new FailedJobDto
+                {
+                    Job = job,
+                    Reason = reason,
+                    ExceptionDetails = exceptionDetails,
+                    ExceptionMessage = exceptionMessage,
+                    ExceptionType = exceptionType,
+                    FailedAt = failedAt
+                };
             });
         }
 
