@@ -329,8 +329,13 @@ dotnet build
 ```
 
 ### Running Tests
+The test suite utilizes `RavenDB.TestDriver` for in-process RavenDB instance execution alongside unit tests, ensuring full end-to-end storage engine validation:
 ```bash
+# Run all tests (unit and in-process RavenDB integration tests)
 dotnet test
+
+# Run integration tests specifically
+dotnet test --filter RavenStorageIntegrationFacts
 ```
 
 ### Running Benchmarks
