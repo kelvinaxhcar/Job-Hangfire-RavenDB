@@ -8,6 +8,8 @@ using Hangfire.Raven.Storage;
 using Hangfire.Server;
 using Hangfire.Storage;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Operations;
+using Raven.Client.Documents.Queries;
 using Raven.Client.Documents.Session;
 using System;
 using System.Collections.Generic;
@@ -19,7 +21,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Hangfire.Raven
 {
-    public class RavenConnection : JobStorageConnection, IJobStorageBatchConnection, IStorageConnectionAsync
+    public class RavenConnection : JobStorageConnection, IJobStorageBatchConnection, IStorageConnectionAsync, IBatchJobCancellation
     {
         private static readonly ILog Logger = LogProvider.For<RavenConnection>();
         private static readonly SessionOptions NoTrackingOptions = new SessionOptions { NoTracking = true };
@@ -907,5 +909,226 @@ namespace Hangfire.Raven
                 _storage.Cache.Remove(cacheKey);
             }
         }
+
+        #region IBatchJobCancellation Implementation
+
+        public long DeleteByState(string stateName)
+        {
+            if (string.IsNullOrEmpty(stateName)) throw new ArgumentNullException(nameof(stateName));
+
+            var docStore = _storage.Repository.DocumentStore;
+            var dbName = _storage.Repository.DatabaseName;
+
+            if (docStore != null)
+            {
+                var query = new IndexQuery
+                {
+                    Query = $"from RavenJobs where StateData.Name = '{stateName}'"
+                };
+
+                var operation = docStore.Operations.ForDatabase(dbName).Send(new DeleteByQueryOperation(query));
+                var result = operation.WaitForCompletion() as BulkOperationResult;
+                long totalDeleted = result?.Total ?? 0;
+
+                if (stateName.Equals("Enqueued", StringComparison.OrdinalIgnoreCase))
+                {
+                    var queueQuery = new IndexQuery { Query = "from JobQueues" };
+                    docStore.Operations.ForDatabase(dbName).Send(new DeleteByQueryOperation(queueQuery)).WaitForCompletion();
+                }
+
+                ClearAllCaches();
+                return totalDeleted;
+            }
+            else
+            {
+                using var session = _storage.Repository.OpenSession();
+                var jobs = session.Query<RavenJob>().Where(j => j.StateData.Name == stateName).ToList();
+                foreach (var j in jobs)
+                {
+                    session.Delete(j.Id);
+                }
+                session.SaveChanges();
+                ClearAllCaches();
+                return jobs.Count;
+            }
+        }
+
+        public async Task<long> DeleteByStateAsync(string stateName, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrEmpty(stateName)) throw new ArgumentNullException(nameof(stateName));
+
+            var docStore = _storage.Repository.DocumentStore;
+            var dbName = _storage.Repository.DatabaseName;
+
+            if (docStore != null)
+            {
+                var query = new IndexQuery
+                {
+                    Query = $"from RavenJobs where StateData.Name = '{stateName}'"
+                };
+
+                var operation = await docStore.Operations.ForDatabase(dbName).SendAsync(new DeleteByQueryOperation(query), token: cancellationToken);
+                var result = await operation.WaitForCompletionAsync(cancellationToken) as BulkOperationResult;
+                long totalDeleted = result?.Total ?? 0;
+
+                if (stateName.Equals("Enqueued", StringComparison.OrdinalIgnoreCase))
+                {
+                    var queueQuery = new IndexQuery { Query = "from JobQueues" };
+                    var queueOp = await docStore.Operations.ForDatabase(dbName).SendAsync(new DeleteByQueryOperation(queueQuery), token: cancellationToken);
+                    await queueOp.WaitForCompletionAsync(cancellationToken);
+                }
+
+                ClearAllCaches();
+                return totalDeleted;
+            }
+            else
+            {
+                using var session = _storage.Repository.OpenSession();
+                var jobs = session.Query<RavenJob>().Where(j => j.StateData.Name == stateName).ToList();
+                foreach (var j in jobs)
+                {
+                    session.Delete(j.Id);
+                }
+                await Task.Run(() => session.SaveChanges(), cancellationToken);
+                ClearAllCaches();
+                return jobs.Count;
+            }
+        }
+
+        public long DeleteByQueue(string queueName)
+        {
+            if (string.IsNullOrEmpty(queueName)) throw new ArgumentNullException(nameof(queueName));
+
+            var docStore = _storage.Repository.DocumentStore;
+            var dbName = _storage.Repository.DatabaseName;
+
+            if (docStore != null)
+            {
+                var queueQuery = new IndexQuery
+                {
+                    Query = $"from JobQueues where Queue = '{queueName}'"
+                };
+                var opQueue = docStore.Operations.ForDatabase(dbName).Send(new DeleteByQueryOperation(queueQuery));
+                var resQueue = opQueue.WaitForCompletion() as BulkOperationResult;
+                long total = resQueue?.Total ?? 0;
+
+                var jobsQuery = new IndexQuery
+                {
+                    Query = $"from RavenJobs where StateData.Name = 'Enqueued' and StateData.Data.Queue = '{queueName}'"
+                };
+                var opJobs = docStore.Operations.ForDatabase(dbName).Send(new DeleteByQueryOperation(jobsQuery));
+                var resJobs = opJobs.WaitForCompletion() as BulkOperationResult;
+                total += (resJobs?.Total ?? 0);
+
+                ClearAllCaches();
+                return total;
+            }
+            else
+            {
+                using var session = _storage.Repository.OpenSession();
+                var queueItems = session.Query<JobQueue>().Where(q => q.Queue == queueName).ToList();
+                foreach (var q in queueItems)
+                {
+                    session.Delete(q.Id);
+                }
+                session.SaveChanges();
+                ClearAllCaches();
+                return queueItems.Count;
+            }
+        }
+
+        public async Task<long> DeleteByQueueAsync(string queueName, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrEmpty(queueName)) throw new ArgumentNullException(nameof(queueName));
+
+            var docStore = _storage.Repository.DocumentStore;
+            var dbName = _storage.Repository.DatabaseName;
+
+            if (docStore != null)
+            {
+                var queueQuery = new IndexQuery
+                {
+                    Query = $"from JobQueues where Queue = '{queueName}'"
+                };
+                var opQueue = await docStore.Operations.ForDatabase(dbName).SendAsync(new DeleteByQueryOperation(queueQuery), token: cancellationToken);
+                var resQueue = await opQueue.WaitForCompletionAsync(cancellationToken) as BulkOperationResult;
+                long total = resQueue?.Total ?? 0;
+
+                var jobsQuery = new IndexQuery
+                {
+                    Query = $"from RavenJobs where StateData.Name = 'Enqueued' and StateData.Data.Queue = '{queueName}'"
+                };
+                var opJobs = await docStore.Operations.ForDatabase(dbName).SendAsync(new DeleteByQueryOperation(jobsQuery), token: cancellationToken);
+                var resJobs = await opJobs.WaitForCompletionAsync(cancellationToken) as BulkOperationResult;
+                total += (resJobs?.Total ?? 0);
+
+                ClearAllCaches();
+                return total;
+            }
+            else
+            {
+                using var session = _storage.Repository.OpenSession();
+                var queueItems = session.Query<JobQueue>().Where(q => q.Queue == queueName).ToList();
+                foreach (var q in queueItems)
+                {
+                    session.Delete(q.Id);
+                }
+                await Task.Run(() => session.SaveChanges(), cancellationToken);
+                ClearAllCaches();
+                return queueItems.Count;
+            }
+        }
+
+        public long DeleteJobs(IEnumerable<string> jobIds)
+        {
+            if (jobIds == null) throw new ArgumentNullException(nameof(jobIds));
+
+            long count = 0;
+            using (var session = _storage.Repository.OpenSession())
+            {
+                foreach (var jobId in jobIds)
+                {
+                    if (string.IsNullOrEmpty(jobId)) continue;
+                    var docId = _storage.Repository.GetId(typeof(RavenJob), jobId);
+                    session.Delete(docId);
+                    count++;
+                }
+                session.SaveChanges();
+            }
+
+            ClearAllCaches();
+            return count;
+        }
+
+        public async Task<long> DeleteJobsAsync(IEnumerable<string> jobIds, CancellationToken cancellationToken = default)
+        {
+            if (jobIds == null) throw new ArgumentNullException(nameof(jobIds));
+
+            long count = 0;
+            using (var session = _storage.Repository.OpenSession())
+            {
+                foreach (var jobId in jobIds)
+                {
+                    if (string.IsNullOrEmpty(jobId)) continue;
+                    var docId = _storage.Repository.GetId(typeof(RavenJob), jobId);
+                    session.Delete(docId);
+                    count++;
+                }
+                await Task.Run(() => session.SaveChanges(), cancellationToken);
+            }
+
+            ClearAllCaches();
+            return count;
+        }
+
+        private void ClearAllCaches()
+        {
+            if (_storage?.Cache is MemoryCache memCache)
+            {
+                memCache.Compact(1.0);
+            }
+        }
+
+        #endregion
     }
 }

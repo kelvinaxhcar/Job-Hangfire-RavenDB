@@ -248,6 +248,31 @@ var tasks = Enumerable.Range(1, 1000)
 List<string> jobIds = JobStorage.Current.BulkEnqueue(tasks, queue: "heavy-processing");
 ```
 
+### High-Performance Batch Job Cancellation & Deletion
+Delete or cancel hundreds or thousands of jobs in bulk using RavenDB's atomic `DeleteByQueryOperation`:
+```csharp
+using Hangfire.Raven.Extensions;
+
+// 1. Delete all failed jobs in one bulk operation
+long deletedFailed = JobStorage.Current.DeleteJobsByState("Failed");
+
+// 2. Delete all jobs in a specific queue and purge queue items
+long deletedQueueJobs = JobStorage.Current.DeleteJobsByQueue("heavy-processing");
+
+// 3. Delete specific job IDs in batch
+long deletedSpecific = JobStorage.Current.DeleteJobs(new[] { "job-1", "job-2", "job-3" });
+
+// Async variants with cancellation token support:
+await JobStorage.Current.DeleteJobsByStateAsync("Deleted", cancellationToken);
+await JobStorage.Current.DeleteJobsByQueueAsync("default", cancellationToken);
+await JobStorage.Current.DeleteJobsAsync(jobIdList, cancellationToken);
+```
+
+#### REST API Endpoints for Dashboard UI5 / Operators:
+- `POST /api/ui5/batch/delete?state=Failed` (or `state=Succeeded`, `state=Deleted`, `state=Enqueued`)
+- `POST /api/ui5/batch/delete?queue=heavy-processing`
+- `POST /api/ui5/batch/delete?jobs=job1,job2,job3`
+
 ---
 
 ## Configuration Options
