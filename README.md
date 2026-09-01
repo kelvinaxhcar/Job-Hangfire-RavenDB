@@ -23,6 +23,7 @@
 - ⚡ **Native Asynchronous Operations (`IStorageConnectionAsync` & `IWriteOnlyTransactionAsync`)**: Full non-blocking async storage operations backed by RavenDB's `IAsyncDocumentSession` and `SaveChangesAsync()`.
 - 📜 **Immutable Job State Audit Trail (RavenDB Revisions)**: Native Document Revisions integration capturing the full lifecycle and state transitions of every job with compliance audit history.
 - 🔄 **Resilient I/O & Automatic Retry Policy (Polly)**: Built-in resilience pipeline with exponential backoff and jitter for transient network failures, RavenDB concurrency conflicts, and cluster failover interruptions. Fully configurable via `RavenStorageOptions.RetryPolicy`.
+- 📈 **OpenTelemetry & Prometheus Metrics**: Native `System.Diagnostics.Metrics` instrumentation (`Meter("Hangfire.Raven")`) and Prometheus `/hangfire/metrics` endpoint exposing database documents, stale indexes, job state counters, and operation latencies for Grafana, Datadog, and Prometheus.
 - 🦅 **RavenDB Storage & Index Metrics**: Full cluster observability (database size, total documents, index health status).
 
 ---
@@ -164,6 +165,43 @@ builder.Services.AddHealthChecks()
 // Map Health Check endpoint
 app.MapHealthChecks("/healthz");
 ```
+
+### 5. OpenTelemetry & Prometheus Metrics
+
+Export native observability metrics to Prometheus, Grafana, Datadog, or New Relic via `System.Diagnostics.Metrics` (`"Hangfire.Raven"`) or standard Prometheus text endpoint.
+
+#### OpenTelemetry .NET SDK
+```csharp
+using Hangfire.Raven.Diagnostics;
+
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics =>
+    {
+        metrics.AddMeter(HangfireRavenMeter.MeterName);
+    });
+```
+
+#### Prometheus Scraping Endpoint (`/hangfire/metrics`)
+```csharp
+using Hangfire.Raven;
+
+// Maps GET /hangfire/metrics (returns Prometheus text/plain; version=0.0.4)
+app.MapRavenMetrics("/hangfire/metrics");
+```
+
+**Exported Metrics:**
+| Metric Name | Type | Description |
+|---|---|---|
+| `hangfire_ravendb_documents_count` | Gauge | Total documents in RavenDB database |
+| `hangfire_ravendb_indexes_stale` | Gauge | Count of stale indexes |
+| `hangfire_ravendb_indexes_total` | Gauge | Total count of indexes |
+| `hangfire_ravendb_jobs_count{state="..."}` | Gauge | Jobs per state (`enqueued`, `processing`, `succeeded`, `failed`, `scheduled`, `deleted`, `awaiting`) |
+| `hangfire_ravendb_servers_count` | Gauge | Active Hangfire servers |
+| `hangfire_ravendb_queues_count` | Gauge | Active queues |
+| `hangfire_ravendb_recurring_count` | Gauge | Active recurring jobs |
+| `hangfire_ravendb_operations_total` | Counter | Total RavenDB storage operations |
+| `hangfire_ravendb_operation_duration_seconds` | Histogram | Storage operation duration in seconds |
+| `hangfire_ravendb_retry_attempts_total` | Counter | Total retry attempts performed by Polly |
 
 ---
 
