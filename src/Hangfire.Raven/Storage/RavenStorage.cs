@@ -6,6 +6,7 @@ using Hangfire.Raven.Indexes;
 using Hangfire.Raven.JobQueues;
 using Hangfire.Storage;
 using Microsoft.Extensions.Caching.Memory;
+using Raven.Client.Documents;
 using Raven.Client.Documents.Indexes;
 
 namespace Hangfire.Raven.Storage
@@ -29,6 +30,16 @@ namespace Hangfire.Raven.Storage
 
         public RavenStorage(IRepository repository)
           : this(repository, new RavenStorageOptions())
+        {
+        }
+
+        public RavenStorage(IDocumentStore documentStore)
+          : this(new Repository(documentStore), new RavenStorageOptions())
+        {
+        }
+
+        public RavenStorage(IDocumentStore documentStore, RavenStorageOptions options)
+          : this(new Repository(documentStore), options)
         {
         }
 

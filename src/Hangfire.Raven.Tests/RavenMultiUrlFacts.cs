@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 using Hangfire.Raven.Storage;
 using Moq;
+using Raven.Client.Documents;
 using Xunit;
 
 namespace Hangfire.Raven.Tests
@@ -49,7 +50,8 @@ namespace Hangfire.Raven.Tests
         [Fact]
         public void Repository_ThrowsArgumentNullException_WhenConfigIsNull()
         {
-            Assert.Throws<ArgumentNullException>(() => new Repository(null));
+            Assert.Throws<ArgumentNullException>(() => new Repository((RepositoryConfig)null));
+            Assert.Throws<ArgumentNullException>(() => new Repository((IDocumentStore)null));
         }
 
         [Fact]

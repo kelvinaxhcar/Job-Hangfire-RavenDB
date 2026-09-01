@@ -166,6 +166,8 @@ namespace Hangfire.Raven.HealthChecks
                 {
                     return (docStore, _options.Database ?? docStore.Database);
                 }
+
+                return (null, _options.Database);
             }
 
             // Fallback to JobStorage.Current if configured

@@ -1,4 +1,5 @@
 using Hangfire.Raven.Extensions;
+using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using System;
 using System.Collections.Generic;
@@ -34,6 +35,60 @@ namespace Hangfire.Raven.Storage
         {
             storage.ThrowIfNull(nameof(storage));
             return configuration.UseStorage<RavenStorage>(storage);
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            RepositoryConfig config)
+        {
+            return configuration.UseRavenStorage(config, new RavenStorageOptions());
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            RepositoryConfig config,
+            RavenStorageOptions options)
+        {
+            configuration.ThrowIfNull(nameof(configuration));
+            config.ThrowIfNull(nameof(config));
+            options.ThrowIfNull(nameof(options));
+            return configuration.UseStorage(new RavenStorage(config, options));
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            IRepository repository)
+        {
+            return configuration.UseRavenStorage(repository, new RavenStorageOptions());
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            IRepository repository,
+            RavenStorageOptions options)
+        {
+            configuration.ThrowIfNull(nameof(configuration));
+            repository.ThrowIfNull(nameof(repository));
+            options.ThrowIfNull(nameof(options));
+            return configuration.UseStorage(new RavenStorage(repository, options));
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            IDocumentStore documentStore)
+        {
+            return configuration.UseRavenStorage(documentStore, new RavenStorageOptions());
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            IDocumentStore documentStore,
+            RavenStorageOptions options)
+        {
+            configuration.ThrowIfNull(nameof(configuration));
+            documentStore.ThrowIfNull(nameof(documentStore));
+            options.ThrowIfNull(nameof(options));
+            return configuration.UseStorage(new RavenStorage(documentStore, options));
         }
 
         public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
@@ -119,6 +174,42 @@ namespace Hangfire.Raven.Storage
             }, options);
 
             return configuration.UseStorage<RavenStorage>(storage);
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            string[] urls,
+            string database)
+        {
+            return configuration.UseRavenStorage((IEnumerable<string>)urls, database, (X509Certificate2)null, new RavenStorageOptions());
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            string[] urls,
+            string database,
+            X509Certificate2 certificate)
+        {
+            return configuration.UseRavenStorage((IEnumerable<string>)urls, database, certificate, new RavenStorageOptions());
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            string[] urls,
+            string database,
+            RavenStorageOptions options)
+        {
+            return configuration.UseRavenStorage((IEnumerable<string>)urls, database, (X509Certificate2)null, options);
+        }
+
+        public static IGlobalConfiguration<RavenStorage> UseRavenStorage(
+            this IGlobalConfiguration configuration,
+            string[] urls,
+            string database,
+            X509Certificate2 certificate,
+            RavenStorageOptions options)
+        {
+            return configuration.UseRavenStorage((IEnumerable<string>)urls, database, certificate, options);
         }
 
         private static string[] ValidateAndNormalizeUrls(IEnumerable<string> urls)
