@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hangfire.Logging;
+using Hangfire.Raven.Diagnostics;
 using Hangfire.Raven.Extensions;
 using Hangfire.Raven.Indexes;
 using Hangfire.Raven.JobQueues;
@@ -65,6 +66,8 @@ namespace Hangfire.Raven.Storage
             _repository.EnsureRevisionsConfigured(_options);
             InitializeIndexes();
             InitializeQueueProviders();
+
+            HangfireRavenMeter.RegisterStorage(this);
         }
 
         public RavenStorageOptions Options => _options;
@@ -107,6 +110,8 @@ namespace Hangfire.Raven.Storage
 
         public void Dispose()
         {
+            HangfireRavenMeter.UnregisterStorage(this);
+
             if (_disposeCache && _cache is IDisposable disposableCache)
             {
                 disposableCache.Dispose();

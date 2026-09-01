@@ -37,6 +37,12 @@ namespace Hangfire.Raven.Dashboard
                 DashboardRoutes.Routes.Add("/api/ui5/servers", ui5ApiDispatcher);
                 DashboardRoutes.Routes.Add("/api/ui5/job-revisions", ui5ApiDispatcher);
 
+                DashboardRoutes.Routes.Add("/ui5/api/overview", ui5ApiDispatcher);
+                DashboardRoutes.Routes.Add("/ui5/api/jobs", ui5ApiDispatcher);
+                DashboardRoutes.Routes.Add("/ui5/api/recurring", ui5ApiDispatcher);
+                DashboardRoutes.Routes.Add("/ui5/api/servers", ui5ApiDispatcher);
+                DashboardRoutes.Routes.Add("/ui5/api/job-revisions", ui5ApiDispatcher);
+
                 // 4. Navigation Menu Items
                 NavigationMenu.Items.Add(page => new MenuItem("RavenDB", page.Url.To("/ravendb"))
                 {
