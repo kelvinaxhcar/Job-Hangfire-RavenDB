@@ -1,20 +1,27 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Hangfire.Common;
 using Hangfire.Raven.Entities;
 using Hangfire.Raven.Storage;
+using Hangfire.Server;
 using Hangfire.States;
 using Hangfire.Storage;
 using Moq;
 using Raven.Client.Documents.Session;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Hangfire.Raven.Tests
 {
-    public class RavenAsyncConnectionFacts
+    public class RavenAsyncConnectionFacts : TesteBase
     {
+        public RavenAsyncConnectionFacts(ITestOutputHelper helper) : base(helper)
+        {
+        }
+
         [Fact]
         public async Task CreateExpiredJobAsync_StoresAndSavesAsync()
         {
@@ -27,7 +34,7 @@ namespace Hangfire.Raven.Tests
             var storage = new RavenStorage(repositoryMock.Object);
             using var connection = new RavenConnection(storage);
 
-            var job = Job.FromExpression(() => SampleAsyncMethod());
+            var job = Job.FromExpression(() => SampleAsyncTarget());
             var parameters = new Dictionary<string, string> { { "key1", "val1" } };
 
             var jobId = await connection.CreateExpiredJobAsync(job, parameters, DateTime.UtcNow, TimeSpan.FromDays(1));
@@ -43,7 +50,7 @@ namespace Hangfire.Raven.Tests
             var repositoryMock = new Mock<IRepository>();
             var asyncSessionMock = new Mock<IAsyncDocumentSession>();
 
-            var job = Job.FromExpression(() => SampleAsyncMethod());
+            var job = Job.FromExpression(() => SampleAsyncTarget());
             var ravenJob = new RavenJob
             {
                 Id = "RavenJobs/job-async-1",
@@ -64,7 +71,7 @@ namespace Hangfire.Raven.Tests
             Assert.NotNull(jobData);
             Assert.Equal("Succeeded", jobData.State);
             Assert.NotNull(jobData.Job);
-            Assert.Equal(nameof(SampleAsyncMethod), jobData.Job.Method.Name);
+            Assert.Equal(nameof(SampleAsyncTarget), jobData.Job.Method.Name);
         }
 
         [Fact]
@@ -112,7 +119,118 @@ namespace Hangfire.Raven.Tests
             sessionMock.Verify(s => s.SaveChanges(), Times.Once);
         }
 
-        public static void SampleAsyncMethod()
+        [Fact]
+        public async Task AsyncMethods_WhenCancellationTokenCancelled_ThrowsOperationCanceledException()
+        {
+            var repositoryMock = new Mock<IRepository>();
+            var storage = new RavenStorage(repositoryMock.Object);
+            using var connection = new RavenConnection(storage);
+
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+            var token = cts.Token;
+
+            var sampleJob = Job.FromExpression(() => SampleAsyncTarget());
+            var sampleDict = new Dictionary<string, string>();
+            var sampleKvp = new List<KeyValuePair<string, string>> { new KeyValuePair<string, string>("k", "v") };
+
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.CreateExpiredJobAsync(sampleJob, sampleDict, DateTime.UtcNow, TimeSpan.FromHours(1), token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetJobDataAsync("j1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetStateDataAsync("j1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.SetJobParameterAsync("j1", "p", "v", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetJobParameterAsync("j1", "p", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetAllItemsFromSetAsync("s1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetFirstByLowestScoreFromSetAsync("s1", 0, 10, token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.SetRangeInHashAsync("h1", sampleKvp, token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetAllEntriesFromHashAsync("h1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.AnnounceServerAsync("srv1", new ServerContext(), token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.RemoveServerAsync("srv1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.HeartbeatAsync("srv1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.RemoveTimedOutServersAsync(TimeSpan.FromMinutes(5), token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetSetCountAsync("s1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetRangeFromSetAsync("s1", 0, 10, token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetSetTtlAsync("s1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetCounterAsync("c1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetHashCountAsync("h1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetHashTtlAsync("h1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetValueFromHashAsync("h1", "f", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetListCountAsync("l1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetListTtlAsync("l1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetRangeFromListAsync("l1", 0, 10, token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.GetAllItemsFromListAsync("l1", token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.CreateWriteTransactionAsync(token));
+            await Assert.ThrowsAsync<OperationCanceledException>(() => connection.BatchEnqueueAsync(new List<BatchJobItem>(), "default", token));
+        }
+
+        [Fact]
+        public void AsyncMethods_ReturnIdenticalResultsToSyncMethods()
+        {
+            UseStorage(storage =>
+            {
+                using var connection = storage.GetConnection() as RavenConnection;
+                Assert.NotNull(connection);
+
+                // 1. Hash operations
+                var hashData = new Dictionary<string, string>
+                {
+                    ["field1"] = "val1",
+                    ["field2"] = "val2"
+                };
+                connection.SetRangeInHash("test-hash-async", hashData);
+
+                var syncHash = connection.GetAllEntriesFromHash("test-hash-async");
+                var asyncHash = connection.GetAllEntriesFromHashAsync("test-hash-async").GetAwaiter().GetResult();
+                Assert.Equal(syncHash, asyncHash);
+
+                var syncVal = connection.GetValueFromHash("test-hash-async", "field1");
+                var asyncVal = connection.GetValueFromHashAsync("test-hash-async", "field1").GetAwaiter().GetResult();
+                Assert.Equal(syncVal, asyncVal);
+
+                var syncHashCount = connection.GetHashCount("test-hash-async");
+                var asyncHashCount = connection.GetHashCountAsync("test-hash-async").GetAwaiter().GetResult();
+                Assert.Equal(syncHashCount, asyncHashCount);
+
+                // 2. Set operations
+                using (var tx = connection.CreateWriteTransaction())
+                {
+                    tx.AddToSet("test-set-async", "item1");
+                    tx.AddToSet("test-set-async", "item2");
+                    tx.AddToSet("test-set-async", "item3");
+                    tx.Commit();
+                }
+
+                var syncSet = connection.GetAllItemsFromSet("test-set-async");
+                var asyncSet = connection.GetAllItemsFromSetAsync("test-set-async").GetAwaiter().GetResult();
+                Assert.Equal(syncSet, asyncSet);
+
+                var syncSetCount = connection.GetSetCount("test-set-async");
+                var asyncSetCount = connection.GetSetCountAsync("test-set-async").GetAwaiter().GetResult();
+                Assert.Equal(syncSetCount, asyncSetCount);
+
+                // 3. List operations
+                using (var tx = connection.CreateWriteTransaction())
+                {
+                    tx.InsertToList("test-list-async", "list-item-1");
+                    tx.InsertToList("test-list-async", "list-item-2");
+                    tx.Commit();
+                }
+
+                var syncList = connection.GetAllItemsFromList("test-list-async");
+                var asyncList = connection.GetAllItemsFromListAsync("test-list-async").GetAwaiter().GetResult();
+                Assert.Equal(syncList, asyncList);
+
+                var syncListCount = connection.GetListCount("test-list-async");
+                var asyncListCount = connection.GetListCountAsync("test-list-async").GetAwaiter().GetResult();
+                Assert.Equal(syncListCount, asyncListCount);
+
+                var syncRange = connection.GetRangeFromList("test-list-async", 0, 1);
+                var asyncRange = connection.GetRangeFromListAsync("test-list-async", 0, 1).GetAwaiter().GetResult();
+                Assert.Equal(syncRange, asyncRange);
+            });
+        }
+
+        [Fact]
+        public static void SampleAsyncTarget()
         {
         }
     }
