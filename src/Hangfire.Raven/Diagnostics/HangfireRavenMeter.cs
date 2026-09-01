@@ -14,7 +14,7 @@ namespace Hangfire.Raven.Diagnostics
     public static class HangfireRavenMeter
     {
         public const string MeterName = "Hangfire.Raven";
-        public const string MeterVersion = "1.0.7";
+        public const string MeterVersion = "1.1.0";
 
         public static readonly Meter Meter = new Meter(MeterName, MeterVersion);
 

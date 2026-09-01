@@ -3,11 +3,11 @@
 	<PropertyGroup>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		<TargetFrameworks>net8.0;net9.0</TargetFrameworks>
-		<AssemblyVersion>1.0.7.0</AssemblyVersion>
-		<FileVersion>1.0.7.0</FileVersion>
+		<AssemblyVersion>1.1.0.0</AssemblyVersion>
+		<FileVersion>1.1.0.0</FileVersion>
 		<Description>RavenDB job storage for Hangfire</Description>
 		<PackageId>Job.Hangfire.Raven6x</PackageId>
-		<Version>1.0.7</Version>
+		<Version>1.1.0</Version>
 		<Authors>Kelvin Mateus Axhcar</Authors>
 		<Company>KelvinAxhcar</Company>
 		<Copyright>Copyright @ KelvinAxhcar</Copyright>

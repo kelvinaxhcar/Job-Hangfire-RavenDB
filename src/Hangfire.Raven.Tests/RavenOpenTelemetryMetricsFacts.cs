@@ -18,7 +18,7 @@ namespace Hangfire.Raven.Tests
         public void HangfireRavenMeter_HasCorrectMeterNameAndVersion()
         {
             Assert.Equal("Hangfire.Raven", HangfireRavenMeter.MeterName);
-            Assert.Equal("1.0.7", HangfireRavenMeter.MeterVersion);
+            Assert.Equal("1.1.0", HangfireRavenMeter.MeterVersion);
             Assert.NotNull(HangfireRavenMeter.Meter);
             Assert.Equal("Hangfire.Raven", HangfireRavenMeter.Meter.Name);
         }
